@@ -28,13 +28,13 @@ parser = argparse.ArgumentParser(usage=usage)
 
 parser.add_argument("fileName", nargs=1, type=str, help="The input .com file without the .com extension")
 parser.add_argument("-j", "--job", dest="jobType", nargs='*', type=str, default=['opt', 'freq'])
-parser.add_argument("-g", "--geom", dest="geom", type=str, default='file')
-parser.add_argument("-m", "--method", dest="method", nargs=1, type=str, default=['M062X'],
+parser.add_argument("-g", "--geom", dest="geom", nargs='*', type=str, default='file')
+parser.add_argument("-m", "--method", dest="method", type=str, default='M062X',
                     help="The method to be used, give the correct gaussian keyword")
-parser.add_argument("-b", "--basis", dest="basisSet", nargs=1, type=str, default=['6-311++G(d,p)'],
+parser.add_argument("-b", "--basis", dest="basisSet", type=str, default='6-311++G(d,p)',
                     help="The basis set to be used, give the correct gaussian keyword")
-parser.add_argument("--mr", "--mod", dest="modRed", action='store_true',
-                    help="Flag whether to expect moderedundant input or not, set to true for input")
+parser.add_argument("--mod", dest="modRed", type=str,
+                    help="ModRedundant input, each input line entered as a csv")
 parser.add_argument("--smd", dest="smd", action='store_true',
                     help="Flag whether to include SMD keyword for solvation or not, set to true for input")
 parser.add_argument("-p", dest="preset", nargs=1, type=int,
@@ -90,7 +90,10 @@ for jT in args.jobType:
             jobType += 'Opt(Tight,TS,NoEigen,CalcFC) Freq '
     if jT.lower() == 'scan':
         jobType += 'Opt(ModRedundant,MaxCycles=100) '
-        args.modRed = True
+        try:
+            args.modRed != None
+        except:
+            print("ModRedundant input expected for scan but not given", sys.stderr)
         nProc = 40
         memMB = 120000
     if jT.lower() == 'own':
@@ -112,24 +115,27 @@ elif args.geom == 'chk':
     moleculeGeom = [parseOriginal(fileName, 2)[0]]
 elif args.geom == 'allchk':
     jobSpec += ' Geom(AllCheck) Guess(Read)'
-elif args.geom[-4:] == '.log':
-    with open(args.geom, 'r') as logFile:
+elif args.geom[0][-4:] == '.log':
+    geomLog = args.geom[0]
+    with open(geomLog, 'r') as logFile:
         for el in logFile:
             if ('Charge' in el) and ('Multiplicity' in el):
                 moleculeGeom = [el.split()[2] + ' ' + el.split()[-1]]
-    ids = gg.atomIdentify(args.geom)
-    optStep = input("If scan log file enter which optimised geometry to pull (press enter to skip)")
-    if optStep == '':
+    ids = gg.atomIdentify(geomLog)
+    if len(args.geom) == 2:
+        optStep = int(args.geom[-1])
+    else:
         optStep = 1
-    geometry = gg.geomPulllog(args.geom, optStep=int(optStep))[0]
+    geometry = gg.geomPulllog(geomLog, optStep=int(optStep))[0]
     for atom in range(len(ids)):
         moleculeGeom.append('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(ids[atom], geometry[atom,:]))
 
 # Sets modredundant input from next section or user input
-if args.modRed == True:
+if args.modRed != None:
+    modRedundant = args.modRed.split(',')
     # Edit to check file for modRedundant input then if not there add user input - but issue with connectivity changing section value
     #modRedundant = parseOriginal(fileName, 2)
-    modRedundant = input("Enter modRedundant input (csv for multiple lines):").split(',')
+#    modRedundant = input("Enter modRedundant input (csv for multiple lines):").split(',')
 
 # Parses in presets and sets variables from that?
 if args.preset != None:
@@ -155,7 +161,7 @@ with open(fileName+'.com', 'w+') as output:
         print(jobTitle + '\n', file=output)
         for el in moleculeGeom:
             print(el, file=output)
-    if args.modRed == True:
+    if args.modRed != None:
         print('', file=output)
         for el in modRedundant:
             print(el, file=output)
