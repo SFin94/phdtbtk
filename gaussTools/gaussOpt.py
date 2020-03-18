@@ -19,9 +19,11 @@ def printConvergence(convergenceResult, convergenceFlags):
     plot = False
     print('Convergence:')
     for cFlag in convergenceFlags:
-        print('\t' + cFlag + ': ' + convergenceResult[cFlag])
-        if convergenceResult[cFlag] == 'NO':
+        if convergenceResult[cFlag][0] == 'NO':
+            print('\t' + cFlag + ': ' + convergenceResult[cFlag][0] + '\t' + 'Result: ' + convergenceResult[cFlag][1] + '\t' + 'Threshold: ' + convergenceResult[cFlag][2])
             plot = True
+        else:
+            print('\t' + cFlag + ': ' + convergenceResult[cFlag][0])
     return(plot)
 
 
@@ -31,10 +33,12 @@ def parseInfo(fileName, freqGoal=1):
     freqCount = 0
     jobInput = None
 
+    # Set empty dicts for recording results
     convergenceFlags = ['Maximum Force', 'RMS     Force', 'Maximum Displacement', 'RMS     Displacement']
     optValues = {cFlag: [] for cFlag in convergenceFlags}
     optValues['Energy'] = []
     convResult = dict.fromkeys(convergenceFlags)
+    convTol = dict.fromkeys(convergenceFlags)
 
     finalOutput = ''
     lowFreq = []
@@ -55,7 +59,7 @@ def parseInfo(fileName, freqGoal=1):
         for cFlag in convergenceFlags:
             if cFlag in el:
                 optValues[cFlag].append(float(el.split()[2]))
-                convResult[cFlag] = (el.split()[4])
+                convResult[cFlag] = [el.split()[4], el.split()[2], el.split()[3]]
                 convStepCount += 0.25
 
         if 'Low frequencies' in el:
