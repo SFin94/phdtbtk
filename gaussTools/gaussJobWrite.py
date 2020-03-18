@@ -27,7 +27,7 @@ def parseOriginal(fileName, section):
     return(input)
 
 
-if '__name__' == __main__:
+if __name__ == "__main__":
 
     '''Argparse usage and arguments'''
 
