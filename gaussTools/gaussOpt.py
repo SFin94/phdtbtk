@@ -78,10 +78,10 @@ def parseInfo(fileName, freqGoal=1):
     printConvergence(convResult, convergenceFlags)
     print('Final Energy: ' + str(optValues['Energy'][-1]))
     print('Steps taken to optimise: ' + str(convStepCount))
-    return(optValues, plot)
+    return(optValues, convResult, plot)
 
 
-def plotTraj(optValues):
+def plotTraj(optValues, convResult):
 
     # Set font parameters and colours
     plt.rcParams['font.family'] = 'sans-serif'
@@ -118,6 +118,7 @@ def plotTraj(optValues):
             ax.plot(stepsTaken, optVal, color=energyCol, alpha=0.6, lw=5, label='Energy')
         else:
             ax1.plot(stepsTaken, optVal, color=colour[colInd], label=optFlag, alpha=0.6, lw=3, ls='--')
+            ax1.plot(stepsTaken, [float(convResult[optFlag][2])]*len(stepsTaken), color=colour[colInd], lw=0.5)
             colInd += 1
     ax1.legend(frameon=False)
 
@@ -136,9 +137,9 @@ if __name__ == '__main__':
                         help="Boolean flag which prints optimisation trajectory if True.")
     args = parser.parse_args()
 
-    optResults, plot = parseInfo(args.fileName[0], args.freqGoal)
+    optResults, convResult, plot = parseInfo(args.fileName[0], args.freqGoal)
 
     if any([plot, args.traj]):
-        plotTraj(optResults)
+        plotTraj(optResults, convResult)
 
 
