@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("fileName", nargs=1, type=str, help="The input .com file without the .com extension")
     parser.add_argument("-j", "--job", dest="jobType", nargs='*', type=str, default=['opt', 'freq'],
                         help="Gaussian job type, currently available: opt, freq, reopt (opt, freq from chk), scan (opt(ModRedundant)), ts (TS Opt), own (enter own arguments)")
-    parser.add_argument("-g", "--geom", dest="geom", nargs='*', type=str, default='file')
+    parser.add_argument("-g", "--geom", dest="geom", type=str, nargs='*', default=['file'])
     parser.add_argument("-m", "--method", dest="method", type=str, default='M062X',
                         help="The method to be used, give the correct gaussian keyword")
     parser.add_argument("-b", "--basis", dest="basisSet", type=str, default='6-311++G(d,p)',
@@ -83,10 +83,8 @@ if __name__ == "__main__":
                 jobType += 'Opt(Tight,TS,NoEigen,CalcFC) Freq '
         if jT.lower() == 'scan':
             jobType += 'Opt(ModRedundant,MaxCycles=100) '
-            try:
-                args.modRed != None
-            except:
-                print("ModRedundant input expected for scan but not given", sys.stderr)
+            if args.modRed == None:
+                raise Exception("ModRedundant input expected for scan but not given", sys.stderr)
             nProc = 40
             memMB = 120000
         if jT.lower() == 'own':
@@ -99,27 +97,26 @@ if __name__ == "__main__":
     # Set the job Spec up with standard convergence criteria
     jobSpec = '#P ' + jobMethod + ' ' + jobType + 'SCF(Conver=9) Int(Grid=UltraFine)'
 
-
-    # Sets charges + multiplicity and/or molecular geometry from original file
-    if args.geom == 'file':
+    # Set starting geometry and charge input from original .com, a .chk or a .log file
+    fileFlag = args.geom[0]
+    if fileFlag == 'file':
         moleculeGeom = parseOriginal(fileName, 2)
-    elif args.geom == 'chk':
+    elif fileFlag == 'chk':
         jobSpec += ' Geom(Check) Guess(Read)'
         moleculeGeom = [parseOriginal(fileName, 2)[0]]
-    elif args.geom == 'allchk':
+    elif fileFlag == 'allchk':
         jobSpec += ' Geom(AllCheck) Guess(Read)'
-    elif args.geom[0][-4:] == '.log':
-        geomLog = args.geom[0]
-        with open(geomLog, 'r') as logFile:
+    elif fileFlag[-4:] == '.log':
+        with open(fileFlag, 'r') as logFile:
             for el in logFile:
                 if ('Charge' in el) and ('Multiplicity' in el):
                     moleculeGeom = [el.split()[2] + ' ' + el.split()[-1]]
-        ids = gg.atomIdentify(geomLog)
+        ids = gg.atomIdentify(fileFlag)
         if len(args.geom) == 2:
             optStep = int(args.geom[-1])
         else:
             optStep = 1
-        geometry = gg.geomPulllog(geomLog, optStep=int(optStep))[0]
+        geometry = gg.geomPulllog(fileFlag, optStep=int(optStep))[0]
         for atom in range(len(ids)):
             moleculeGeom.append('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(ids[atom], geometry[atom,:]))
 
