@@ -45,7 +45,10 @@ class GaussianCom():
         # Set job specification
         self.set_job_spec(method, basis, job_type, modred_input, smd)
 
-        self.modred_input = modred_input.split(',')
+        if modred_input is not None:
+            self.modred_input = modred_input.split(',')
+        else:
+            self.modred_input= modred_input
 
 
     def set_output_file(self, output_file):
@@ -358,7 +361,7 @@ def test_input(molecule_input, cm_input):
         return molecule_input, cm_input
 
 
-def create_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, method='M062X', basis='6-311++G(d,p)', smd=False, modred_input=None, molecule_input=None, geom_step=[1], cm_input=None):
+def push_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, method='M062X', basis='6-311++G(d,p)', smd=False, modred_input=None, molecule_input=None, geom_step=[1], cm_input=None):
 
     '''
     Creates a com file class instance and write a new com file
@@ -432,4 +435,4 @@ if __name__ == "__main__":
         geom_step =[1]
 
     # Call methrod to create and write com file
-    create_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis=args.basis, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=args.cm_input)
+    push_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis=args.basis, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=args.cm_input)
