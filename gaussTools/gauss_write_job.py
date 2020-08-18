@@ -169,7 +169,7 @@ class GaussianCom():
         
         if geometry is not None:
             # Set formatted line for each atom of atom id and x, y, z coordinate
-            for i in range(len(atom_ids)-1):
+            for i in range(len(atom_ids)):
                 self.molecule_spec.append('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom_ids[i], geometry[i,:]))
             self.chk = False
         else:
