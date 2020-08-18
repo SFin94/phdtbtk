@@ -37,7 +37,45 @@ def process_input_file(input_file):
     # Parse in existing dataframe and set first column (mol_names) as index
     elif file_type == 'csv':
         mol_df = pd.read_csv(input_file, index_col=0) 
-        return mol_df
+        return mol_df, None
     
     else:
         return
+
+
+def parse_xyz(xyz_file):
+
+    '''
+    Parses geometry and atom ids from an xyz file
+    
+    Parameters:
+     xyz_file: str - name/path of input xyz file
+
+    Returns:
+     geometry: np array - x, y, z coordinates for each atom
+     atom_ids: list of str - atom id of each atom
+    
+    '''
+    # Open xyz file
+    with open(xyz_file, 'r') as input:
+        atom_number = int(input.readline())
+        for line in input:
+
+            # If multiple molecules then process next one with new atom number
+            if len(molecule) >= 1:
+                atom_number = int(line.split()[0])
+                line = input.__next__()
+
+            # Intialise variables
+            atom_ids = []
+            atom_coords = []
+            
+            # Pull geometry and atom ids
+            for i in range(atom_number):
+                line = input.__next__()
+                atom_ids.append(line.split()[0])
+                xyz = np.asarray([float(i) for i in line.split()[1:]])
+                atom_coords.append(xyz)
+            geometry = np.asarray(atom_coords)
+
+    return geometry, atom_ids
