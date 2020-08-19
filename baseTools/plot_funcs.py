@@ -10,6 +10,7 @@ import matplotlib.lines as mlin
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.interpolate import griddata
+from sklearn.preprocessing import LabelEncoder
 
 
 '''General plotting functions - currently copied from mol lego version'''
@@ -243,7 +244,7 @@ def plot_param_E(mol_data, parameter_col, energy_col='Relative E SCF', save=None
     # Plot points and connecting lines if scan
     ax.scatter(mol_data[parameter_col], mol_data[energy_col], color=colour_list, marker='o', s=70, alpha=0.8)
     if scan == True:
-        ax.plot(mol_data[parameter_col], mol_data[energy_col], marker=None, alpha=0.4, color=colour[1])
+        ax.plot(mol_data.sort_values(parameter_col)[parameter_col], mol_data.sort_values(parameter_col)[energy_col], marker=None, alpha=0.4, color=colour[1])
 
     # Set x and y labels
     ax.set_xlabel(parameter_col, fontsize=11)
@@ -526,3 +527,51 @@ def plot_conf_map(conformer_data, geom_parameters, save=None, colour=None, energ
         plt.savefig(save + '.png')
 
     return fig, ax
+
+
+# Added/edited up to here
+
+
+def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, save=None, fig=None, ax=None):
+
+    '''Plots comparative scatter plot of rankings for two sets of data
+    
+    Parameters:
+     mol_data_one: pandas DataFrame - Conformer data containing quantity one values
+     quantity_col_one: str - Column heading of quantity one to rank conformers by
+     mol_data_two: pandas DataFrame - Conformer data (same conformers as mol_data_one) containing quantity two values
+     quantity_col_two: str - Column heading of quantity two to rank conformers by
+     save: str - name of image to save plot too (minus .png extension) [deafult: NoneType]
+     fig, ax: :matplotlib:fig, :matplotlib:ax objects for the plot - [default: NoneType]
+    
+    Returns:
+     fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
+
+    '''
+    fig, ax = plot_setup(fig=fig, ax=ax)
+
+    # Call label encoder on index to get list of values - both data sets must have same conformer indexes
+    int_ranks = LabelEncoder()
+    int_ranks.fit(list(mol_data_one.index))
+
+    # Get rank of columns and compare - sorts by lowest first
+    rank = []
+    for mol_data, col in zip([mol_data_one, mol_data_two], [quantity_col_one, quantity_col_two]):
+        mol_order = list((mol_data.sort_values(col).index))
+        rank.append(int_ranks.transform(mol_order))
+    
+    # Plot scatter of ranks
+    ax.scatter(rank[0], rank[1], color='#71B48D')
+
+    # Set x and y axis as integer numbers
+    conf_indexes = [int(i) for i in range(len(rank[0]))]
+    ax.set_xticks(range(len(conf_indexes)))
+    ax.set_yticks(range(len(conf_indexes)))
+    ax.set_xticklabels(conf_indexes, fontsize=10)
+    ax.set_yticklabels(conf_indexes, fontsize=10)
+
+    if save != None:
+        plt.savefig(save + '.png')
+    
+    return fig, ax
+
