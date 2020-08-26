@@ -558,7 +558,6 @@ def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, s
     for mol_data, col in zip([mol_data_one, mol_data_two], [quantity_col_one, quantity_col_two]):
         order = list((mol_data.sort_values(col).index))
         rank.append([mol_order.index(i) for i in order])
-        print(rank)
     
     # Plot scatter of ranks
     ax.scatter(rank[0], rank[1], color='#71B48D')
