@@ -549,16 +549,16 @@ def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, s
 
     '''
     fig, ax = plot_setup(fig=fig, ax=ax)
-
-    # Call label encoder on index to get list of values - both data sets must have same conformer indexes
-    int_ranks = LabelEncoder()
-    int_ranks.fit(list(mol_data_one.index))
+    
+    # Set order of molecules by first quantity
+    mol_order = list((mol_data_one.sort_values(quantity_col_one).index))
 
     # Get rank of columns and compare - sorts by lowest first
     rank = []
     for mol_data, col in zip([mol_data_one, mol_data_two], [quantity_col_one, quantity_col_two]):
-        mol_order = list((mol_data.sort_values(col).index))
-        rank.append(int_ranks.transform(mol_order))
+        order = list((mol_data.sort_values(col).index))
+        rank.append([mol_order.index(i) for i in order])
+        print(rank)
     
     # Plot scatter of ranks
     ax.scatter(rank[0], rank[1], color='#71B48D')
