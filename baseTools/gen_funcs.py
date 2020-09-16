@@ -6,76 +6,99 @@ import molLego as ml
 
 
 def process_input_file(input_file):
-
-    '''Processes the input file, if a conf file is given then the molecules are processed, creating Molecule/MoleculeThermo objects for each enetry in the conf file and converting to a DataFrame. If a csv file is given then the molecule DataFrame is parsed directly from the csv file
+    """
+    Process input file creating DataFrame of molecule information and/or Molecule/MoleculeThermo objects.
     
-    Parameters:
-     input_file: str - file name which should have either a .conf or .csv extension
+    Parameters
+    ----------
+    input_file: `str`
+        The input file name.
+        Should be one of .log, .xyz, .conf or .csv.
 
     Returns:
-     mol_df: pd DataFrame - dataframe of molecule information
-     [optional returns if .conf file is the input file type]
-     molecules: list of Molecule/MoleculeThermo objects - created Molecule objects for each entry line in the conf file
+    mol_df: `pd DataFrame`
+        A dataframe of molecule information
+    molecules: `list of Molecule/MoleculeThermo objects`
+        The Molecule objects for each input molecule if .log, .xyz or .conf.
+        Otherwise None type if .csv.
 
-    '''
-    
+    """
     # Retrieve file type for input file
     file_type = str(input_file.split('.')[-1])
 
-    # Process conf file, creating Molecule objects and a DataFrame
-    if file_type == 'conf':
+    # Process Molecule objects and DataFrame if direct input source
+    try:
+        if file_type == 'conf':
+            mol_names, mols = ml.construct_mols(input_file)
+            mol_df = ml.mols_to_dataframe(mols, mol_names=mol_names)
 
-        mol_names, mols = ml.construct_mols(input_file)
-        mol_df = ml.mols_to_dataframe(mols, mol_names=mol_names)
+        elif file_type == 'log':
+            mols = ml.init_mol_from_log(input_file)
+            mol_df = ml.mols_to_dataframe(mols)
+
+        elif file_type == 'xyz':
+            mols = ml.init_mol_from_xyz(input_file)
+            mol_df = ml.mols_to_dataframe(mols)
+
+        # Parse existing dataframe and set first column (mol_names) as index
+        elif file_type == 'csv':
+            mol_df = pd.read_csv(input_file, index_col=0) 
+            mols = None
+        
         return mol_df, mols
 
-    elif file_type == 'xyz':
-        mols = ml.init_mol_from_xyz(input_file)
-        mol_df = ml.mols_to_dataframe(mols)
-        return mol_df, mols
+    except:
+        print('Input file is not a compatiable file type (.log, .xyz, .conf or .csv)')
 
-    # Parse in existing dataframe and set first column (mol_names) as index
-    elif file_type == 'csv':
-        mol_df = pd.read_csv(input_file, index_col=0) 
-        return mol_df, None
+
+def readlines_reverse(input_file):
+    """
+    Read lines of a file in reverse order [edited from Filip Szczypiński].
+
+    Parameters
+    ----------
+    input_file: `str`
+        The file to be read
+
+    """ 
+    with open(input_file) as in_file:
+        
+        # Move to end of file
+        in_file.seek(0, 2)
+        position = in_file.tell()
+        line = ''
+
+        # Iterate over lines until top is reached
+        while position >= 0:
+            in_file.seek(position)
+            next_char = in_file.read(1)
+            if next_char == "\n":
+                yield line[::-1]
+                line = ''
+            else:
+                line += next_char
+            position -= 1
+        yield line[::-1]
+
+
+def push_geom_xyz(output_file, molecule):
+    """
+    Output molecule to an .xyz file.
+
+    Parameters
+    ----------
+    output_file: `str`
+        The name of the output xyz file.
+    molecule: `Molecule object`
+        The molecule to be output.
     
-    else:
-        return
+    """
+    # Open output file, print header lines then atom indexes and cartesian coordinates to file
+    with open(output_file + '.xyz', 'w+') as out_file:
+        print(molecule.atom_number, file=out_file)
+        print('Structure of {}'.format(output_file.split('.')[0]), file=out_file)
+        for atom_ind, atom in enumerate(molecule.atom_ids):
+            print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geom[atom_ind]), file=out_file)
 
 
-def parse_xyz(xyz_file):
 
-    '''
-    Parses geometry and atom ids from an xyz file
-    
-    Parameters:
-     xyz_file: str - name/path of input xyz file
-
-    Returns:
-     geometry: np array - x, y, z coordinates for each atom
-     atom_ids: list of str - atom id of each atom
-    
-    '''
-    # Open xyz file
-    with open(xyz_file, 'r') as input:
-        atom_number = int(input.readline())
-        for line in input:
-
-            # If multiple molecules then process next one with new atom number
-            if len(molecule) >= 1:
-                atom_number = int(line.split()[0])
-                line = input.__next__()
-
-            # Intialise variables
-            atom_ids = []
-            atom_coords = []
-            
-            # Pull geometry and atom ids
-            for i in range(atom_number):
-                line = input.__next__()
-                atom_ids.append(line.split()[0])
-                xyz = np.asarray([float(i) for i in line.split()[1:]])
-                atom_coords.append(xyz)
-            geometry = np.asarray(atom_coords)
-
-    return geometry, atom_ids
