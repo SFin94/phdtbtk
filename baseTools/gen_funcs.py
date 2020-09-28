@@ -1,3 +1,5 @@
+"""Module containing general functions for phd processing and tools."""
+
 import sys
 import numpy as np
 import pandas as pd
@@ -25,6 +27,7 @@ def process_input_file(input_file):
     """
     # Retrieve file type for input file
     file_type = str(input_file.split('.')[-1])
+    print(file_type)
 
     # Process Molecule objects and DataFrame if direct input source
     try:
