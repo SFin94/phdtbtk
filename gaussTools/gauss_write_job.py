@@ -144,21 +144,19 @@ class GaussianCom():
             raise Exception("Job type does not match known type")
 
 
-    def _set_modred_keyword(self):
+    def _set_modred_keyword(self, current_job_spec):
         """Edit class attribute job_spec to add ModRedundant keyword in Opt section."""
         try: 
-            if 'opt' in self.job_spec.lower():
+            # Find position of opt in job spec and split around this point
+            opt_position = current_job_spec.lower().index('opt')
 
-                # Split current job spec around opt keyword section
-                start, initial_end = self.job_spec.lower().split('opt')
-                middle, end = initial_end.split(')')
+            # Insert modred keyword after Opt
+            start = current_job_spec[:opt_position]
+            end = current_job_spec[opt_position+4:]
+            job_spec = start + 'Opt(ModRedundant,' + end
 
-                # Insert modredundant keyword in to middle
-                middle += ',ModRedundant)'
-
-                # Put back together
-                self.job_spec = start + middle + end
-
+            return job_spec
+            
         except:
             print('Opt keyword not mentioned in job spec but modredundant input given')
 
@@ -200,7 +198,7 @@ class GaussianCom():
 
         # Edit Opt section of job spec if ModRedundant input present
         if modred_input != None:
-           self._set_modred_keyword()
+           job_spec = self._set_modred_keyword(job_spec)
 
         # Set SMD keyword
         job_spec += ' SCRF(SMD)'*(smd == True)
@@ -406,22 +404,22 @@ def cm_from_com(input_file):
     return charge, multiplicity
 
 
-def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=[1]):
+def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=None):
 
-    # Set file type and use function from dict to set molecule spec
+    # Use input file type to map to function for setting molecule spec
     mol_spec = []
     geometry_functions = {'log': geom_from_log, 'com': geom_from_com, 'xyz': geom_from_xyz}
     cm_functions = {'log': cm_from_log, 'com': cm_from_com}
     
     # Pull geometry and atom ids for molecule depending on file type
     if pull_geometry:
-        input_file_type = input_file.split('.')[1]
+        input_file_type = input_file.split('.')[-1]
         mol_spec += geometry_functions[input_file_type](input_file, geom_step)
 
     # Pull charge and multiplicity from input file or raw entry
     if pull_cm:
         if type(input_file) == str:
-            input_file_type = input_file.split('.')[1]
+            input_file_type = input_file.split('.')[-1]
             mol_spec += cm_functions[input_file_type](input_file)
         else:
             try:
@@ -441,12 +439,13 @@ def test_input(molecule_input, cm_input):
     elif test_values == [False, True]:
         if molecule_input == 'chk':
             raise Exception('chk selected for geometry input but no charge/multiplicity provided.')
-        return molecule_input, molecule_input
+        else:
+            return molecule_input, molecule_input
     else:
         return molecule_input, cm_input
 
 
-def push_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, method='M062X', basis_set='6-311++G(d,p)', smd=None, modred_input=None, molecule_input=None, geom_step=[1], cm_input=None):
+def push_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, method='M062X', basis_set='6-311++G(d,p)', smd=None, modred_input=None, molecule_input=None, geom_step=None, cm_input=None):
     """Create a com file class instance and write a new com file."""
     # Set computatonal resources
     if preset != None:
@@ -513,7 +512,13 @@ if __name__ == "__main__":
     if len(geom_input) == 2:
         geom_step = geom_input[1]
     else:
-        geom_step =[1]
+        geom_step = None
 
-    # Call methrod to create and write com file
-    push_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis_set=args.basis_set, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=args.cm_input)
+    # Process cm input for either raw input or file name
+    if args.cm_input != None and len(args.cm_input) == 1:
+        cm_input = args.cm_input[0]
+    else:
+        cm_input = args.cm_input
+    
+    # Call method to create and write com file
+    push_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis_set=args.basis_set, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=cm_input)
