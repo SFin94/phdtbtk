@@ -189,8 +189,6 @@ def process_goodvibes(molecule_file, goodvibes_file, save=None):
     # Set initial Molecule and GoodVibes dataframes.
     mol_data_initial, mols = phdtbtk.process_input_file(molecule_file)
     gv_data, gv_calc_properties = pull_goodvibes(goodvibes_file)
-    print(gv_data[['G(T)', 'T.S']]*2625.5)
-    print(mol_data_initial[['E', 'H', 'G', 'ZPE', 'S']])
     
     # Process mol dataframe to have shared index and order with goodvibes df
     mol_data_full = process_dataframes(gv_data, mol_data_initial)
@@ -198,7 +196,7 @@ def process_goodvibes(molecule_file, goodvibes_file, save=None):
     # # Check if thermodynamic quantities match across the gv and gaussian results
     # check_thermo_results(mol_data, gv_data, gv_calc_properties)
     
-    Save as new file or rewrite old one
+    # Save as new file or rewrite old one
     if save == None:
         save = goodvibes_file.split('.')[0]
         mol_data_full.to_csv(save + '.csv')    
