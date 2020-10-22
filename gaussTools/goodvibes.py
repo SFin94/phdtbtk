@@ -1,3 +1,5 @@
+"""Module to process GoodVibes results and to add quasi-harmonic values to an existing dataframe of molecules."""
+
 import sys
 import argparse
 import sklearn
@@ -12,21 +14,24 @@ import phdtbtk
 import molLego as ml
 
 
-'''Script to process GoodVibes results and to add quasi-harmonic values to an existing dataframe of molecules'''
+def pull_goodvibes(file_name):
+    """
+    Parse results from GoodVibes output file.
 
+    Parameters
+    ----------
+    file_name: `str`
+        Name/location of goodvibes data file to be processed.
 
-def parse_goodvibes(input_file):
-
-    '''Parses results from a goodvibes output file
-
-    Parameters:
-     input_file: str - name/location of goodvibes data file to be processed
-
-    Returns:
-     goodvibes_data: pd DataFrame - dataframe containing the results from a goodvibes calculations
-     calculation_properties: dict - details of goodvibes calcualtions (temperature, concentration and scale factor is used)
-    '''
-
+    Returns
+    -------
+    goodvibes_data: :pandas:`DataFrame`
+        Results from GoodVibes calculations.
+    calculation_properties: `dict`
+        Key: Value pair is the parameters of the GoodVibes calculation and value.
+        E.g. T, C, Scale factor.
+    
+    """
     # Dict for flags of calculation output wanted: Temperature; Concentration; Scale factor
     property_flags = {'Temperature =': 'temp', 'Concentration =': 'conc', 'scale factor': 'scale_factor', 'scaling factor of': 'scale_factor'}
 
@@ -35,181 +40,219 @@ def parse_goodvibes(input_file):
     raw_results = []
 
     # Open file and pull thermodynamic results
-    with open(input_file, 'r+') as input:
-        for line in input:
+    with open(file_name, 'r') as infile:
+        for line in infile:
             for flag, property in property_flags.items():
                 if flag in line:
                     calculation_properties[property] = float(line.split(flag)[1].split()[0])
 
-            if 'Structure' in line:
-                col_headings = line.split()
-                line = input.__next__()
-                line = input.__next__()
-                while line[0] == 'o':
-                    entries = [line.split()[1]]
-                    entries += [float(i) for i in line.split()[2:]]
-                    raw_results.append(dict(zip(col_headings, entries)))
-                    line = input.__next__()
+                if 'Structure' in line:
+                    col_headings = line.split()
+                    line = infile.__next__()
+                    line = infile.__next__()
+                    while line[0] == 'o':
+                        entries = [line.split()[1]]
+                        entries += [float(i) for i in line.split()[2:]]
+                        raw_results.append(dict(zip(col_headings, entries)))
+                        line = infile.__next__()
 
     # Create dataframe of results with the structure as index column
     goodvibes_data = pd.DataFrame(raw_results).set_index(['Structure'])
 
     return goodvibes_data, calculation_properties
 
-
 def process_file_name(file_name):
-        return file_name.split('/')[-1][:-4]
+    return file_name.split('/')[-1][:-4]
 
+def process_dataframes(goodvibes_data, mol_data_initial):
+    """
+    Combine initial molecule data with GoodVibes results.
 
-def process_dataframes(goodvibes_index, mol_data):
+    Parameters
+    ----------
+    goodvibes_data: :pandas:`DataFrame`
+        Results from GoodVibes calculations.
+    mol_data_initial: :pandas:`DataFrame`
+        Exisiting molecule data.
 
-    '''Sets a Structure column as a new index for the existing molecule data that corresponds to goodvibes dataframe and sorts order to match goodvibes dataframe
-
-    Parameters:
-     goodvibes_index: pd DataFrame index - The index ('Structure') used in the goodvibes dataframe 
-     mol_data: pd DataFrame - dataframe contanining the initial molecule results
-
-    Returns:
-     mol_data: pd DataFrame - processed dataframe consisting only of entries with corresponding goodvibes data
-    '''
-
-    # Create a new column of the corresponding goodvibes structure
-    mol_data['Structure'] = mol_data['File'].apply(process_file_name)
-
-    # Subset mol_data frame to the entries present in the goodvibes dataframe
-    mol_data = mol_data.loc[mol_data['Structure'].isin(goodvibes_index)]
-
-    # Set index and order to match goodvibes dataframe
-    mol_data = mol_data.set_index(['Structure'])
+    Returns
+    -------
+    mol_data_final: :pandas:`DataFrame`
+        Processed dataframe of molecules with GoodVibes and initial molecule results.
     
-    # Need to fix here to prevent new columns being added if not included 
-    mol_data = mol_data.reindex(index=goodvibes_index)
-
-    return mol_data
-
-
-def check_thermo_results(mol_data, goodvibes_data, calculation_properties):
-
-    '''Checks that RRHO thermodynamic quantities are the same across the goodvibes and gaussian thermochemistry results. If not then prints a warning. Copies of the DataFrames are created to avoid changing the data in place.
-
-    Only the electronic E, H, ZPE are checked as TS and G will not match if solvation calculation
-
-    Parameters:
-     mol_data: pd DataFrame - dataframe of molecule data from gaussian log file
-     goodvibes_data: pd DataFrame - dataframe containing the results from a goodvibes calculations
-     calculation_properties: Dict - properties of the GoodVibes calculation including concentration, temperature and scale factor
-
-    ''' 
-    # Convert all quantities to kj/mol
-    goodvibes_comp_data = goodvibes_data[:]*2625.5
-    mol_comp_data = mol_data
-    mol_comp_data['E SCF (h)'] *= 2625.5
-
-    mol_cols = ['ZPE', 'E SCF (h)', 'H', 'G']
-    goodvibes_cols = ['ZPE', 'E', 'H', 'G(T)']
-
-    diff = pd.DataFrame()
+    """
+    # Set new column headings and existing goodvibes headings for TS, G and qh quantities.
+    qh_new_headings = ['TS', 'G', 'TqhS', 'qhG']
+    qh_goodvibes_headings = ['G(T)', 'T.S', 'T.qh-S', 'qh-G(T)']
+    if 'qh-H' in list(goodvibes_data.columns):
+        qh_new_headings.append('qhH')
+        qh_goodvibes_headings.append('qh-H')
     
-    # Try comparison with unscaled gaussian data
-    comp = phdtbtk.data_comp(mol_comp_data, goodvibes_comp_data, df_cols_1=mol_cols, df_cols_2=goodvibes_cols, tol=1e-2)
-    if all(comp):
-        return
+    # Set column headings to be used from initial molecule dataframe.
+    columns_to_remove = ['G', 'S', 'Relative E', 'Relative H', 'Relative G']
+    mol_data_columns = list(mol_data_initial.columns[~mol_data_initial.columns.isin(columns_to_remove)])
+
+    # Initialise a new dataframe with the new columns.
+    mol_data_final = pd.DataFrame(columns=(mol_data_columns + qh_new_headings))
     
-    # Try comparison with scaled gaussian data
-    elif ('scale_factor' in calculation_properties):
-        scale_factor = calculation_properties['scale_factor']
-        mol_comp_data['ZPE_scaled'] = scale_factor*mol_comp_data['ZPE']
-        mol_comp_data['H_scaled'] = mol_comp_data['H'] - mol_comp_data['ZPE'] + mol_comp_data['ZPE_scaled']
-        mol_cols = ['ZPE_scaled', 'E SCF (h)', 'H_scaled']
-        comp = phdtbtk.data_comp(mol_comp_data, goodvibes_comp_data, df_cols_1=mol_cols, df_cols_2=goodvibes_cols[:-1], tol=1e-2)
+    # Set new rows for each molecule with initial mol and goodVibes data.
+    for i in mol_data_initial.index:    
+        # Create starting dict for entry
+        new_mol = (mol_data_initial.loc[i, mol_data_columns]).to_dict()
+        new_mol.update({i:0.0 for i in qh_new_headings})
 
-    if not all(comp):
-        print('Warning: goodvibes thermo results do not match original gaussian results (tolerence: ', 1e-2, ')')
-        print(comp)
-
-    return
+        # Extract each file name and format as GoodVibes index.
+        for file_name in mol_data_initial.loc[i, 'File'].split(','):
+            file_name = process_file_name(file_name)
+            
+            # Locate molecule in GoodVibes data and set qh results.
+            try:
+                for quantity in zip(qh_new_headings, qh_goodvibes_headings):
+                    new_mol[quantity[0]] += (goodvibes_data.loc[file_name, quantity[1]]*2625.5)
+            except:
+                print(file_name, ' not found in GoodVibes results.')
         
+        # Set row for molecule/s in new data frame.
+        mol_data_final.loc[i] = new_mol
 
-def append_goodvibes(mol_data, goodvibes_data):
-
-    '''Appends the quasi-RRHO entropy and free energy values to the original data frame.
+    # Remove molecules without GoodVibes results.
+    mol_data_final = mol_data_final[np.abs(mol_data_final['qhG']).gt(0)]
     
-    Parameters:
-     mol_data: pd DataFrame - dataframe of molecule data from gaussian log file
-     goodvibes_data: pd DataFrame - dataframe containing the results from a goodvibes calculations
+    # Calculate relative values for E, qhG (and qhH)
+    mol_data_final = ml.calc_relative(mol_data_final, quantities=(['E'] + qh_new_headings[1:]))
+
+    return mol_data_final
+
+
+# def check_thermo_results(mol_data, goodvibes_data, calculation_properties):
+#     """
+#     Check consistency between GoodVibes and Guassian RHHO thermodynamic values.
+
+#     Only the electronic E, H, ZPE are checked as TS and G will not match if solvation calculation. 
+#     A warning is printed if the values are not consistant.
     
-    Returns:
-     mol_data: pd DataFrame - updated dataframe with columns with quasi-RRHO entropy and free energy values and relative values
-    '''
+#     Parameters
+#     ---------
+    # mol_data: :pandas:`DataFrame`
+    #     The exisiting molecule data.
+    # goodvibes_data: :pandas:`DataFrame`
+        # Results from GoodVibes calculations.
+#     calculation_properties: `dict`
+#         Key: Value pair is the parameters of the GoodVibes calculation and value.
+#         E.g. T, C, Scale factor.
 
-    # Set headings
-    qh_new_headings = ['TqhS', 'qhG']
-    qh_goodvibe_headings = ['T.qh-S', 'qh-G(T)']
+#     """
+#     # Convert all quantities to kj/mol
+#     goodvibes_comp_data = goodvibes_data[:]*2625.5
+#     mol_comp_data = mol_data
+#     mol_comp_data['E SCF (h)'] *= 2625.5
 
-    # Set RHHO columns in original dataframe (and change from h to kJ/mol)
-    mol_data[qh_new_headings] = goodvibes_data[qh_goodvibe_headings]*2625.5
+#     mol_cols = ['ZPE', 'E SCF (h)', 'H', 'G']
+#     goodvibes_cols = ['ZPE', 'E', 'H', 'G(T)']
 
-    # Calculate relative values for them
-    mol_data = ml.calc_relative(mol_data, quantities=qh_new_headings)
-
-    return mol_data
-
-
-def process_goodvibes(molecule_file, goodvibes_file, new_file=False, save=None):
-
-    '''
-    Combined workflow for processing gaussian molecule data, goodvibes data, and appending the two
+#     diff = pd.DataFrame()
     
-    Parameters:
-     molecule_data: str - name/location of file for molecule data [csv or conf]
-     goodvibes_data: str - name/location of goodvibes data file
-     new_file: bool - Flag of whether results should be appended to the existing molecule data file or create a new file
-     save: str - new file name to write appended data too [default: None]
+#     # Try comparison with unscaled gaussian data
+#     comp = phdtbtk.data_comp(mol_comp_data, goodvibes_comp_data, df_cols_1=mol_cols, df_cols_2=goodvibes_cols, tol=1e-2)
+#     if all(comp):
+#         return
+    
+#     # Try comparison with scaled gaussian data
+#     elif ('scale_factor' in calculation_properties):
+#         scale_factor = calculation_properties['scale_factor']
+#         mol_comp_data['ZPE_scaled'] = scale_factor*mol_comp_data['ZPE']
+#         mol_comp_data['H_scaled'] = mol_comp_data['H'] - mol_comp_data['ZPE'] + mol_comp_data['ZPE_scaled']
+#         mol_cols = ['ZPE_scaled', 'E SCF (h)', 'H_scaled']
+#         comp = phdtbtk.data_comp(mol_comp_data, goodvibes_comp_data, df_cols_1=mol_cols, df_cols_2=goodvibes_cols[:-1], tol=1e-2)
 
-    '''
-    # Create initial dataframes for existing molecule results and goodvibes results
+#     if not all(comp):
+#         print('Warning: goodvibes thermo results do not match original gaussian results (tolerence: ', 1e-2, ')')
+#         print(comp)
+
+#     return
+
+
+def process_goodvibes(molecule_file, goodvibes_file, save=None):
+    """
+    Workflow for processing GoodVibes data and appending to Gaussian Molecule data.
+    
+    Parameters
+    ----------
+    molecule_file: `str`
+        Name/location of file for molecule data [csv or conf] of dataframe of molecules.
+    goodvibes_fle: `str`
+        Name/location of goodvibes data file.
+    save: `str` 
+        Output file name to write final data to. [default: None]
+
+    """
+    # Set initial Molecule and GoodVibes dataframes.
     mol_data_initial, mols = phdtbtk.process_input_file(molecule_file)
-    gv_data, gv_calc_properties = parse_goodvibes(goodvibes_file)
+    gv_data, gv_calc_properties = pull_goodvibes(goodvibes_file)
+    print(gv_data[['G(T)', 'T.S']]*2625.5)
+    print(mol_data_initial[['E', 'H', 'G', 'ZPE', 'S']])
     
     # Process mol dataframe to have shared index and order with goodvibes df
-    mol_data = process_dataframes(gv_data.index, mol_data_initial)
+    mol_data_full = process_dataframes(gv_data, mol_data_initial)
     
-    # Check if thermodynamic quantities match across the gv and gaussian results
-    check_thermo_results(mol_data, gv_data, gv_calc_properties)
-
-    # Add columns to dataframe
-    mol_data_full = append_goodvibes(mol_data, gv_data)
+    # # Check if thermodynamic quantities match across the gv and gaussian results
+    # check_thermo_results(mol_data, gv_data, gv_calc_properties)
     
-    # Save as new file or rewrite old one
-    if new_file == False:
-        if save == None:
-            save = molecule_file.split('.')[0] + '_goodvibes'
+    Save as new file or rewrite old one
+    if save == None:
+        save = goodvibes_file.split('.')[0]
         mol_data_full.to_csv(save + '.csv')    
-    else:
-        mol_data_full.to_csv(molecule_file)
+
+    return mol_data_full
+
+
+def compare_rank(mol_data, save=None):
+    """
+    Plot comparison of conformer rankings across different thermodynamic values.
+    
+    Parameters
+    ----------
+    mol_data_final: :pandas:`DataFrame`
+        Molecule data with GoodVibes and initial (RHHO) molecule results.
+    save: `str`
+        png image name.
+
+    """
+    # Set figure with subplots
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 3))
+
+    # Set comparison pairs and plot scatter for each one
+    x_labels = ['Relative E', 'Relative E', 'Relative G']
+    y_labels = ['Relative qhG', 'Relative G', 'Relative qhG']
+    for i in range(3):
+        fig, ax[i] = phdtbtk.plot_order(mol_data, x_labels[i], mol_data, y_labels[i], fig=fig, ax=ax[i])
+        ax[i].set_ylabel('Conformer rank $\Delta$' + y_labels[i].split()[-1])
+        ax[i].set_xlabel('Conformer rank $\Delta$' + x_labels[i].split()[-1])
+    
+    # save/show plot
+    plt.tight_layout()
+    if save != None:
+        fig.savefig(save, dpi=300)
+    plt.show()
 
 
 if __name__ == "__main__":
     
-    '''
-    CL arguments for running goodvibes analysis/appending dataframe.
-    '''
+    """CL arguments for running goodvibes analysis/appending dataframe."""
 
-    usage = "usage: %(prog)s [goodvibes_data] [mol_data]"
+    usage = "usage: %(prog)s [goodvibes_file] [mol_file]"
     parser = argparse.ArgumentParser(usage=usage)
 
     parser.add_argument("goodvibes_file", type=str, 
-                        help="Goodvibes results file")
-    parser.add_argument("molecule_data", type=str, 
-                        help="Existing datafile (.csv) of molecule data or conf file ofmolecules to append goodvibes results to be appended too")
-    parser.add_argument("-n", "--new", dest="new_file", action='store_false', 
-                        help="Flag of whether a new file should be created with the results [default] or append to the existing molecule_data file")
+                        help="Goodvibes results file.")
+    parser.add_argument("molecule_file", type=str, 
+                        help="Existing molecule datafile (.csv) or conf file of molecules.")
     parser.add_argument("-s", "--save", dest="save", type=str, 
                         help="Name of file to save new results too (minus .csv extension)")
     args = parser.parse_args()
     
-    # Call process workflow to add goodvibes data to existing molecules/molecule dataframe
-    process_goodvibes(args.molecule_file, args.goodvibes_file, new_file=args.new_file, save=args.save)
+    # Call process workflow to add goodvibes data to existing molecules/molecule dataframe.
+    process_goodvibes(args.molecule_file, args.goodvibes_file, save=args.save)
 
 
 
