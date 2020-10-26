@@ -94,7 +94,7 @@ def process_dataframes(goodvibes_data, mol_data_initial):
 
     # Initialise a new dataframe with the new columns.
     mol_data_final = pd.DataFrame(columns=(mol_data_columns + qh_new_headings))
-    
+
     # Set new rows for each molecule with initial mol and goodVibes data.
     for i in mol_data_initial.index:    
         # Create starting dict for entry
@@ -122,6 +122,40 @@ def process_dataframes(goodvibes_data, mol_data_initial):
     mol_data_final = ml.calc_relative(mol_data_final, quantities=(['E'] + qh_new_headings[1:]))
 
     return mol_data_final
+
+
+def update_reaction_profile(reaction_file, mol_data, save=None):
+    """
+    Create new reaction profile using GoodVibes data.
+
+    Parameters
+    ----------
+    reaction_file: `str`
+        Name/location of file for reaction .conf file with reaction molecules in.
+    mol_data: :pandas:`DataFrame`
+        Processed dataframe of molecules with GoodVibes and original molecule results.
+    save: `str` 
+        Output file name to write final data to. [default: None]
+
+    Returns
+    -------
+    reaction_profile_data: :pandas:`DataFrame`
+        Results for all reaction paths in reaction profile.
+
+    """
+    # Construct reaction paths from .conf file.
+    reaction_paths = ml.construct_reaction_path(reaction_file)
+    
+    # Construct reaction profile.
+    reaction_profile_data = ml.construct_reaction_profile(mol_data, reaction_paths, save=save, quantity=['qhH', 'qhG'])
+    
+    # Save new dataframe.
+    if save == None:
+        save = reaction_file.split('.')[0]
+    reaction_profile_data.to_csv(save + '_gv_rprofile.csv')    
+
+    print(reaction_profile_data[['Relative qhH', 'Relative qhG']])
+    return reaction_profile_data
 
 
 # def check_thermo_results(mol_data, goodvibes_data, calculation_properties):
@@ -185,23 +219,24 @@ def process_goodvibes(molecule_file, goodvibes_file, save=None):
     save: `str` 
         Output file name to write final data to. [default: None]
 
+    Returns:
+    mol_data_final: :pandas:`DataFrame`
+        Processed dataframe of molecules with GoodVibes and initial molecule results.
+
     """
     # Set initial Molecule and GoodVibes dataframes.
     mol_data_initial, mols = phdtbtk.process_input_file(molecule_file)
     gv_data, gv_calc_properties = pull_goodvibes(goodvibes_file)
     
     # Process mol dataframe to have shared index and order with goodvibes df
-    mol_data_full = process_dataframes(gv_data, mol_data_initial)
+    mol_data_final = process_dataframes(gv_data, mol_data_initial)
     
-    # # Check if thermodynamic quantities match across the gv and gaussian results
-    # check_thermo_results(mol_data, gv_data, gv_calc_properties)
-    
-    # Save as new file or rewrite old one
+    # Save new dataframe.
     if save == None:
         save = goodvibes_file.split('.')[0]
-        mol_data_full.to_csv(save + '.csv')    
+    mol_data_final.to_csv(save + '.csv')    
 
-    return mol_data_full
+    return mol_data_final
 
 
 def compare_rank(mol_data, save=None):
@@ -230,7 +265,7 @@ def compare_rank(mol_data, save=None):
     # save/show plot
     plt.tight_layout()
     if save != None:
-        fig.savefig(save, dpi=300)
+        fig.savefig(save + '_comp_plot.png', dpi=300)
     plt.show()
 
 
@@ -246,11 +281,18 @@ if __name__ == "__main__":
     parser.add_argument("molecule_file", type=str, 
                         help="Existing molecule datafile (.csv) or conf file of molecules.")
     parser.add_argument("-s", "--save", dest="save", type=str, 
-                        help="Name of file to save new results too (minus .csv extension)")
+                        help="File name to save results to (minus .csv extension)")
+    parser.add_argument("-r", "--reaction", dest="reaction_file", type=str,
+                        help="Original molecule .conf file containing reaction path information.")
     args = parser.parse_args()
     
     # Call process workflow to add goodvibes data to existing molecules/molecule dataframe.
-    process_goodvibes(args.molecule_file, args.goodvibes_file, save=args.save)
+    mol_data = process_goodvibes(args.molecule_file, args.goodvibes_file, save=args.save)
+
+    if args.reaction_file != None:
+        reaction_profile_data = update_reaction_profile(args.reaction_file, mol_data, save=args.save)
+
+
 
 
 
