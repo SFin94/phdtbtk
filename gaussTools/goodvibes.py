@@ -83,7 +83,7 @@ def process_dataframes(goodvibes_data, mol_data_initial):
     """
     # Set new column headings and existing goodvibes headings for TS, G and qh quantities.
     qh_new_headings = ['TS', 'G', 'TqhS', 'qhG']
-    qh_goodvibes_headings = ['G(T)', 'T.S', 'T.qh-S', 'qh-G(T)']
+    qh_goodvibes_headings = ['T.S', 'G(T)', 'T.qh-S', 'qh-G(T)']
     if 'qh-H' in list(goodvibes_data.columns):
         qh_new_headings.append('qhH')
         qh_goodvibes_headings.append('qh-H')
