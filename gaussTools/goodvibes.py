@@ -95,6 +95,9 @@ def process_dataframes(goodvibes_data, mol_data_initial):
     # Initialise a new dataframe with the new columns.
     mol_data_final = pd.DataFrame(columns=(mol_data_columns + qh_new_headings))
 
+    # Remove repeated rows from goodvibes dataframe.
+    goodvibes_data = goodvibes_data.drop_duplicates()
+
     # Set new rows for each molecule with initial mol and goodVibes data.
     for i in mol_data_initial.index:    
         # Create starting dict for entry
@@ -227,7 +230,7 @@ def process_goodvibes(molecule_file, goodvibes_file, save=None):
     # Set initial Molecule and GoodVibes dataframes.
     mol_data_initial, mols = phdtbtk.process_input_file(molecule_file)
     gv_data, gv_calc_properties = pull_goodvibes(goodvibes_file)
-    
+
     # Process mol dataframe to have shared index and order with goodvibes df
     mol_data_final = process_dataframes(gv_data, mol_data_initial)
     
