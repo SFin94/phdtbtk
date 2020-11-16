@@ -507,18 +507,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    # Process geom input if optstep is given
-    geom_input = args.geom_input[0]
-    if len(geom_input) == 2:
-        geom_step = geom_input[1]
+    # Process geom input if optstep is given.
+    if len(args.geom_input) == 2:
+        geom_input, geom_step = args.geom_input
     else:
+        geom_input = args.geom_input[0]
         geom_step = None
 
-    # Process cm input for either raw input or file name
+    # Process cm input for either raw input or file name.
     if args.cm_input != None and len(args.cm_input) == 1:
         cm_input = args.cm_input[0]
     else:
         cm_input = args.cm_input
     
-    # Call method to create and write com file
+    # Call method to create and write com file.
     push_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis_set=args.basis_set, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=cm_input)

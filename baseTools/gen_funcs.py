@@ -17,9 +17,10 @@ def process_input_file(input_file):
         The input file name.
         Should be one of .log, .xyz, .conf or .csv.
 
-    Returns:
+    Returns
+    -------
     mol_df: `pd DataFrame`
-        A dataframe of molecule information
+        A dataframe of molecule information.
     molecules: `list of Molecule/MoleculeThermo objects`
         The Molecule objects for each input molecule if .log, .xyz or .conf.
         Otherwise None type if .csv.
@@ -27,31 +28,29 @@ def process_input_file(input_file):
     """
     # Retrieve file type for input file
     file_type = str(input_file.split('.')[-1])
-    print(file_type)
 
     # Process Molecule objects and DataFrame if direct input source
-    try:
-        if file_type == 'conf':
-            mol_names, mols = ml.construct_mols(input_file)
-            mol_df = ml.mols_to_dataframe(mols, mol_names=mol_names)
+    if file_type == 'conf':
+        mol_names, mols = ml.construct_mols(input_file)
+        mol_df = ml.mols_to_dataframe(mols, mol_names=mol_names)
 
-        elif file_type == 'log':
-            mols = ml.init_mol_from_log(input_file)
-            mol_df = ml.mols_to_dataframe(mols)
+    elif file_type == 'log':
+        mols = ml.init_mol_from_log(input_file)
+        mol_df = ml.mols_to_dataframe(mols)
 
-        elif file_type == 'xyz':
-            mols = ml.init_mol_from_xyz(input_file)
-            mol_df = ml.mols_to_dataframe(mols)
+    elif file_type == 'xyz':
+        mols = ml.init_mol_from_xyz(input_file)
+        mol_df = ml.mols_to_dataframe(mols)
 
-        # Parse existing dataframe and set first column (mol_names) as index
-        elif file_type == 'csv':
-            mol_df = pd.read_csv(input_file, index_col=0) 
-            mols = None
+    # Parse existing dataframe and set first column (mol_names) as index
+    elif file_type == 'csv':
+        mol_df = pd.read_csv(input_file, index_col=0) 
+        mols = None
         
-        return mol_df, mols
+    else:
+        raise Exception('Input file is not a compatiable file type (.log, .xyz, .conf or .csv)')
 
-    except:
-        print('Input file is not a compatiable file type (.log, .xyz, .conf or .csv)')
+    return mol_df, mols
 
 
 def readlines_reverse(input_file):
@@ -103,5 +102,61 @@ def push_geom_xyz(output_file, molecule):
         for atom_ind, atom in enumerate(molecule.atom_ids):
             print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geom[atom_ind]), file=out_file)
 
+def to_smarts(parameter):
+    """
+    Convert an atom id based parameter string to smarts code.
+
+    Parameters
+    ----------
+    parameter: `str`
+        The atom ID string for the parameter.
+        E.g. POCC for the P-O-C-C dihedral
+
+    Returns
+    -------
+    smarts: `str`
+        The Smarts string for the parameter.
+
+    """
+    # Intialise smarts string.
+    atom_id = parameter[0]
+    smarts = '['
+    
+    # Insert [] characters around every atom ID.
+    for p in parameter[1:]:
+        if p.isupper():
+            if atom_id[-1] != '=':
+                smarts += atom_id+']'
+            else:
+                smarts += atom_id
+            atom_id = '[' + p
+        elif p == '=':
+            atom_id += ']='
+        else:
+            atom_id += p
+    # Append final entry.
+    smarts += (atom_id+']')
+
+    return smarts
 
 
+def from_smarts(smarts):
+    """
+    Convert an atom id based parameter string to smarts code.
+
+    Parameters
+    ----------
+    smarts: `str`
+        The Smarts string for the parameter.
+
+    Returns
+    -------
+    parameter: `str`
+        The atom ID string for the parameter.
+        E.g. POCC for the P-O-C-C dihedral
+
+    """
+    parameter = smarts.replace('[', "")
+    parameter = parameter.replace(']', "")
+
+    return parameter
