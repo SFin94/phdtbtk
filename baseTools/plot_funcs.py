@@ -206,36 +206,47 @@ def plot_mols_all(mol_data, save=None, labels=None, enthalpy=False):
     return fig, ax
 
 
-def plot_param_E(mol_data, parameter_col, energy_col='Relative E SCF', save=None, colour=None, scan=False):
+def plot_param_E(mol_data, parameter_col, energy_col='Relative E SCF', save=None, colour=None, scan=False, fig=None, ax=None):
+    """
+    Plot molecules/conformers against the relative energy.
 
-    '''
-    Function which plots molecules/conformers against the relative energy
+    Parameters
+    ----------
+    mol_data: pandas `DataFrame`
+        Molecule data including conformer names/keys and energies.
+    parameter_col: `str`
+        Header for parameter column in molecule data.
+    energy_col: `str`
+        Header for relative energy column in dataframe [default: 'Relative E'].
+    save: `str`
+        Name of image to save plot too (minus .png extension) [Default: None].
+    colour: `List of str`
+        Hex Colour codes for colours to plot conformers in.
+        [Default: None; sets colour for opt/uoptimised conformers].
+    scan: `bool`
+        If True then joins the scatterpoints with a line.
+    fig, ax: :matplotlib:fig, :matplotlib:ax objects for the plot
+        [default: NoneType]
 
-    Parameters:
-     mol_data: pandas DataFrame - Containing conformer names/keys and energies
-     parameter_col: str - header for parameter column in dataframe
-     energy_col: str - header for relative energy column in dataframe [default: 'Relative E']
-     save: str - name of image to save plot too (minus .png extension) [deafult: None type]
-     colour: colour (matplotlib) - colour to plot the conformers in [default: None type; sets colour].
-     scan: bool - flag of whether a scan is being plotted, if true then links the scatterpoints with a line
-
-    Returns:
+    Returns
+    -------
      fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
 
-    '''
+    """
+    fig, ax = plot_setup(fig=fig, ax=ax)
 
-    fig, ax = plot_setup()
-
-    # Set colours for plotting if not provided
+    # Set colours for plotting.
     if colour == None:
-        colour = ['#D17968', '#12304e']
-    elif len(colour[0]) == 1:
-        colour = [colour]
-    
-    # Set colours depending on whether molecule is optimised or just as same colour if not opt data
-    if 'Optimised' in mol_data.columns.values:
-        colour_list = []
-        [colour_list.append(colour[opt]) for opt in mol_data['Optimised']]
+        # Set colours for unoptimised, optimised points.
+        colour = ['#F26157', '#253237']
+        if 'Optimised' in mol_data.columns.values:
+            colour_list = []
+            [colour_list.append(colour[opt]) for opt in mol_data['Optimised']]
+            ax.legend(handles=[mlin.Line2D([], [], color=colour[0], label='Unoptimised', marker='o', alpha=0.6, linestyle=' '), mlin.Line2D([], [], color=colour[1], label='Optimised', marker='o', alpha=0.6, linestyle=' ')], frameon=False, handletextpad=0.1, fontsize=10)
+        else:
+            colour_list = [colour[0]]*len(list(mol_data.index))
+
+    # Make inputted colour argument the correct length for the number of conformers.
     elif len(colour) == len(list(mol_data.index)):
         colour_list = colour
     else:
@@ -249,10 +260,6 @@ def plot_param_E(mol_data, parameter_col, energy_col='Relative E SCF', save=None
     # Set x and y labels
     ax.set_xlabel(parameter_col, fontsize=11)
     ax.set_ylabel('$\Delta$E (kJmol$^{-1}$)', fontsize=11)
-
-    # Set legend to show unopt vs. opt points
-    if 'Optimised' in mol_data.columns.values:
-        ax.legend(handles=[mlin.Line2D([], [], color=colour[0], label='Unoptimised', marker='o', alpha=0.6, linestyle=' '), mlin.Line2D([], [], color=colour[1], label='Optimised', marker='o', alpha=0.6, linestyle=' ')], frameon=False, handletextpad=0.1, fontsize=10)
 
     if save != None:
         plt.savefig(save + '.png', dpi=600)
@@ -371,32 +378,39 @@ def plot_reaction_profile(reaction_data, quantity_col='Relative G', save=None, c
 
 
 def normalise_parameters(conformer_data, geom_parameters):
+    """
+    Normalise geometric (bond/angle/dihedral) parameter values (all scaled to 0:1 range).
 
-    '''Function that updates parameter values in a dataframe to normalise all bond/angle/dihedral parameters to share the same axis for visualisation (all scaled to 0:1 range)
+    Distances are normalised to [0:1] range.
+    Angles are mapped from [0:180] range to [0:1] range.
+    Dihedrals are mapped from [-180:180] range to [0:1] range.
 
-    Distances are normalised to [0:1] range
-    Angles are mapped from [0:180] range to [0:1] range
-    Dihedrals are mapped from [-180:180] range to [0:1] range
+    Updates DataFrame in place.
 
-    Parameters:
-     conformer_data: pandas DataFrame - conformer dataframe with parameters in to be normalised
-     geom_parameters: dict - keys:values are column headings to atom indexes defining the parameter
+    Parameters
+    ----------
+    conformer_data: pandas `DataFrame`
+        Conformer data containing values for geometric parameters to plot.
+    geom_parameters: `list`
+        Column headings defining the parameters.
     
-    Returns:
-     param_headings: list of str - parameter headings for the normalised parameters
-    '''
-
+    Returns
+    -------
+    param_headings: `list` of `str`
+        parameter headings for the normalised parameters
+    
+    """
     param_headings = []
-    for key, value in geom_parameters.items():
+    for parameter in geom_parameters:
         if len(value) == 2:
-            conformer_data["Norm " + key] = conformer_data[key]/conformer_data[key].max()
+            conformer_data["Norm " + key] = conformer_data[parameter]/conformer_data[parameter].max()
         elif len(value) == 3:
-            conformer_data["Norm " + key] = conformer_data[key]/180.
+            conformer_data["Norm " + parameter] = conformer_data[parameter]/180.
         else:
-            conformer_data["Norm " + key] = (conformer_data[key]%360.)/360.
+            conformer_data["Norm " + parameter] = (conformer_data[parameter]%360.)/360.
         
         # Set parameter heading
-        param_headings.append("Norm " + key)
+        param_headings.append("Norm " + parameter)
 
     return param_headings
 
@@ -428,25 +442,32 @@ def set_conformer_colours(conformer_data, energy_col):
 
     
 def plot_conf_radar(conformer_data, geom_parameters, save=None, colour=None, energy_col=None):
+    """
+    Plot conformers against several geometric parameters in a radial plot.
 
-    '''Function which plots conformers against several geometric parameters in a radial plot
-
-    Parameters:
-     conformer_data: pandas DataFrame - conformer data
-     geom_parameters: dict - keys:values are column headings to atom indexes defining the parameter
-     save: str - name of image to save plot too (minus .png extension) [deafult: None type]
-     colour: matplotlib cmap colour - colour map to generate path plot colours from [default: None type; if default then a cubehelix colour map is used].
-     energy_col: str - energy column of dataframe to colour by [default: None type]
+    Parameters
+    ----------
+    conformer_data: pandas `DataFrame`
+        Conformer data containing values for geometric parameters to plot.
+    geom_parameters: `list`
+        Column headings defining the parameters.
+    save: `str`
+        Name of image to save plot too (minus .png extension) [deafult: None type].
+    colour: :matplotlib:`cmap`
+        Colour map to generate path plot colours from 
+        [default: None type; if default then a cubehelix colour map is used].
+    energy_col: `str`
+        Column heading of optional energy parameter to colour rank conformers by.
+        [default: None type]
 
     Returns:
-     fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
+     fig, ax - :matplotlib:`fig`, :matplotlib:`ax` objects for the plot
 
-    '''
-
+    """
     fig, ax = radial_plot_setup()
 
     # Calculate angles to plot, set parameter list
-    num_params = len(geom_parameters.keys())
+    num_params = len(geom_parameters)
     plot_angles = [n / float(num_params) * 2 * np.pi for n in range(num_params)]
     plot_angles += plot_angles[:1]
 
@@ -467,7 +488,7 @@ def plot_conf_radar(conformer_data, geom_parameters, save=None, colour=None, ene
 
     # Set plot attributes
     ax.set_xticks(plot_angles[:-1])
-    ax.set_xticklabels(list(geom_parameters.keys()))
+    ax.set_xticklabels(geom_parameters)
     ax.set_yticks([])
     ax.legend(loc="lower right", bbox_to_anchor=(1.0, 1.04), ncol=3, frameon=False, handletextpad=0.1, fontsize=9)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
@@ -479,24 +500,30 @@ def plot_conf_radar(conformer_data, geom_parameters, save=None, colour=None, ene
 
 
 def plot_conf_map(conformer_data, geom_parameters, save=None, colour=None, energy_col=None):
-    
-    '''Function which plots conformers against several geometric parameters in a linear plot
+    """
+    Plot conformers against several geometric parameters in a linear map.
 
-    Parameters:
-     conformer_data: pandas DataFrame - conformer data
-     geom_parameters: dict - keys:values are column headings to atom indexes defining the parameter
-     save: str - name of image to save plot too (minus .png extension) [deafult: None type]
-     colour: matplotlib cmap colour - colour map to generate path plot colours from [default: None type; if default then a cubehelix colour map is used].
-     energy_col: str - energy column of dataframe to colour by [default: None type]
+    Parameters
+    ----------
+    conformer_data: pandas `DataFrame`
+        Conformer data containing values for geometric parameters to plot.
+    geom_parameters: `list`
+        Column headings defining the parameters.
+    save: `str`
+        Name of image to save plot too (minus .png extension) [deafult: None type].
+    colour: :matplotlib:`cmap`
+        Colour map to generate path plot colours from 
+        [default: None type; if default then a cubehelix colour map is used].
+    energy_col: `str`
+        Column heading of optional energy parameter to colour rank conformers by.
+        [default: None type]
 
     Returns:
-     fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
+     fig, ax - :matplotlib:`fig`, :matplotlib:`ax` objects for the plot
 
-    '''
-    
+    """
     fig, ax = plot_setup()
-    num_params = len(geom_parameters.keys())
-    plot_params = list(geom_parameters.keys())
+    num_params = len(geom_parameters)
 
     # Normalise conformer parameters
     param_headings = normalise_parameters(conformer_data, geom_parameters)
@@ -529,26 +556,31 @@ def plot_conf_map(conformer_data, geom_parameters, save=None, colour=None, energ
     return fig, ax
 
 
-# Added/edited up to here
-
-
 def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, save=None, fig=None, ax=None):
-
-    '''Plots comparative scatter plot of rankings for two sets of data
+    """
+    Plot comparative scatter plot of rankings for two sets of data.
     
-    Parameters:
-     mol_data_one: pandas DataFrame - Conformer data containing quantity one values
-     quantity_col_one: str - Column heading of quantity one to rank conformers by
-     mol_data_two: pandas DataFrame - Conformer data (same conformers as mol_data_one) containing quantity two values
-     quantity_col_two: str - Column heading of quantity two to rank conformers by
-     save: str - name of image to save plot too (minus .png extension) [deafult: NoneType]
-     fig, ax: :matplotlib:fig, :matplotlib:ax objects for the plot - [default: NoneType]
+    Parameters
+    ----------
+    mol_data_one: pandas `DataFrame`
+        Conformer data containing quantity one values.
+    quantity_col_one: `str`
+        Column heading of quantity one to rank conformers by.
+    mol_data_two: pandas `DataFrame`
+        Conformer data (same conformers as mol_data_one) containing quantity two values.
+    quantity_col_two: `str`
+        Column heading of quantity two to rank conformers by.
+    save: `str`
+        Name of image to save plot too (minus .png extension) [deafult: None type].
+    fig, ax: :matplotlib:fig, :matplotlib:ax objects for the plot
+        [default: NoneType]
     
-    Returns:
+    Returns
+    -------
      fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
 
-    '''
-    fig, ax = plot_setup(fig=fig, ax=ax)
+    """
+    fig, ax = plot_setup(figsizeX=6, figsizeY=6, fig=fig, ax=ax)
     
     # Set order of molecules by first quantity
     mol_order = list((mol_data_one.sort_values(quantity_col_one).index))
@@ -560,7 +592,7 @@ def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, s
         rank.append([mol_order.index(i) for i in order])
     
     # Plot scatter of ranks
-    ax.scatter(rank[0], rank[1], color='#71B48D')
+    ax.scatter(rank[0], rank[1], color='#5C6B73', s=150)
 
     # Set x and y axis as integer numbers
     conf_indexes = [int(i) for i in range(len(rank[0]))]
@@ -568,6 +600,53 @@ def plot_order(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, s
     ax.set_yticks(range(len(conf_indexes)))
     ax.set_xticklabels(conf_indexes, fontsize=10)
     ax.set_yticklabels(conf_indexes, fontsize=10)
+
+    if save != None:
+        plt.savefig(save + '.png')
+    
+    return fig, ax
+
+
+def plot_conf_comparison(mol_data_one, quantity_col_one, mol_data_two, quantity_col_two, labels, colours=['#9AD0BB','#5C6B73'], save=None):
+    """
+    Plot bar chart of relative quantities for two sets of conformers.
+    
+    Parameters
+    ----------
+    mol_data_one: pandas `DataFrame`
+        Conformer data containing quantity one values.
+    quantity_col_one: `str`
+        Column heading of quantity one to plot.
+    mol_data_two: pandas `DataFrame`
+        Conformer data (same conformers as mol_data_one) containing quantity two values.
+    quantity_col_two: `str`
+        Column heading of quantity to plot.
+    labels: `list of str`
+        Labels for each of the conformer sets.
+    save: `str`
+        Name of image to save plot too (minus .png extension) [deafult: None type].
+    fig, ax: :matplotlib:fig, :matplotlib:ax objects for the plot
+        [default: NoneType]
+    
+    Returns
+    -------
+     fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
+
+    """
+    # Initialise plot and variables.
+    fig, ax = plot_setup()
+    width=0.4
+    x_range = np.arange(len(mol_data_one.index))
+
+    # Plot bar chart for each conformer data set.
+    ax.bar(x_range - width/2, mol_data_one[quantity_col_one], width, color=colours[0], label=labels[0], alpha=0.9)
+    ax.bar(x_range + width/2, mol_data_two[quantity_col_two], width, color=colours[1], label=labels[1], alpha=0.9)
+
+    # Set plot properties.
+    ax.set_xticks(x_range)
+    ax.set_ylabel('$\Delta$E (kJmol$^{-1}$)')
+    ax.set_xlabel('Conformer')
+    plt.legend()
 
     if save != None:
         plt.savefig(save + '.png')
