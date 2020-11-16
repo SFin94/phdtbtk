@@ -1,6 +1,7 @@
+"""Module to output gaussian optimisation trajectory to an xyz file."""
+
 import sys
 import numpy as np
-
 
 def pull_atom_ids(input_file, atom_number):
     """
