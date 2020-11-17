@@ -82,6 +82,27 @@ def readlines_reverse(input_file):
             position -= 1
         yield line[::-1]
 
+def clean_string(dirty_string):
+    """
+    Remove symbols from string.
+
+    Parameters
+    ----------
+    dirty_string: `str`
+        String to have symbols removed from.
+
+    Returns
+    -------
+    clean_string: `str`
+        String with only alpha/numeric characters.
+
+    """
+    clean_string = ''
+    for char in dirty_string:
+        if char.isalnum():
+            clean_string += char
+    
+    return clean_string
 
 def push_geom_xyz(output_file, molecule):
     """
