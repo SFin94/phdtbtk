@@ -57,3 +57,41 @@ def molecule_to_rdkit(molecule):
     return rdkit_mol
 
 
+def bonds_to_adjacency(bonds):
+    """
+    Construct an adjacency matrix from a tuple containing lists of connected bonds.
+    
+    Parameters
+    ----------
+    bonds: `tuple` of nested lists
+        `list` of bond indexes for each atom in the molecule, order of lists matches the parent atoms index
+
+    """
+    # Initialise variables.
+    mol_adjacency = np.zeros((len(bonds), len(bonds)))
+
+    # Set bond entry in adjacency matrix for every bond in the connection list (non-pythonic index in list)
+    for i, bond_i in enumerate(bonds):
+        for j in bond_i:
+            mol_adjacency[i, j-1] = 1
+
+    return mol_adjacency
+
+
+def recentre_dihedrals(dihedral_vals):
+    """
+    Recentre dihedral range: +/-180 to 0; 0 to +/-180.
+
+    Parameters
+    ----------
+    dihedral_vals: :pandas:`Series`
+        Values of dihedrals to be changed.
+    
+    Returns
+    -------
+    :pandas:`Series`
+        Recentred dihedral values.
+
+    """ 
+    return dihedral_vals.apply(lambda x: x - (x/abs(x))*180)
+
