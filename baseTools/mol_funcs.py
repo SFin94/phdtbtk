@@ -98,8 +98,6 @@ def molecule_to_adjacency(molecule):
 
     # Calculate adjacency matrix.
     mol_adjacency = GetAdjacencyMatrix(rdkit_mol, useBO=True)
-    mol_fingerprint = RDKFingerprint(rdkit_mol)
-    print(mol_fingerprint)
 
     return mol_adjacency
 
