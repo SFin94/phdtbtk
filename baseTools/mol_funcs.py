@@ -15,26 +15,29 @@ import molLego as ml
 import phdtbtk.baseTools.gen_funcs as gen_funcs
 
 # Global list of atoms - index matches ar
-atom_id_index = ['h',  'he', 'li', 'be', 'b',  'c',  'n',  'o',  'f',  'ne', 'na', 'mg', 'al', 'si', 'p',  's',  'cl', 'ar', 'k',  'ca', 'sc', 'ti', 'v ', 'cr', 'mn', 'fe', 'co', 'ni', 'cu', 'zn', 'ga', 'ge', 'as', 'se', 'br', 'kr', 'rb', 'sr', 'y',  'zr', 'nb', 'mo', 'tc', 'ru', 'rh', 'pd', 'ag', 'cd', 'in', 'sn', 'sb', 'te', 'i',  'xe', 'cs', 'ba', 'la', 'ce', 'pr', 'nd', 'pm', 'sm', 'eu', 'gd', 'tb', 'dy', 'ho', 'er', 'tm', 'yb', 'lu', 'hf', 'ta', 'w',  're', 'os', 'ir', 'pt', 'au', 'hg', 'tl', 'pb', 'bi', 'po', 'at', 'rn', 'fr', 'ra', 'ac', 'th', 'pa', 'u', 'np', 'pu']
+__ATOM_TYPES__ = ['h',  'he', 'li', 'be', 'b',  'c',  'n',  'o',  'f',  'ne', 'na', 'mg', 'al', 'si', 'p',  's',  'cl', 'ar', 'k',  'ca', 'sc', 'ti', 'v ', 'cr', 'mn', 'fe', 'co', 'ni', 'cu', 'zn', 'ga', 'ge', 'as', 'se', 'br', 'kr', 'rb', 'sr', 'y',  'zr', 'nb', 'mo', 'tc', 'ru', 'rh', 'pd', 'ag', 'cd', 'in', 'sn', 'sb', 'te', 'i',  'xe', 'cs', 'ba', 'la', 'ce', 'pr', 'nd', 'pm', 'sm', 'eu', 'gd', 'tb', 'dy', 'ho', 'er', 'tm', 'yb', 'lu', 'hf', 'ta', 'w',  're', 'os', 'ir', 'pt', 'au', 'hg', 'tl', 'pb', 'bi', 'po', 'at', 'rn', 'fr', 'ra', 'ac', 'th', 'pa', 'u', 'np', 'pu']
 
 
-def atom_id_to_index(atom_ids):
+def atom_type_to_number(atom_types):
     """
-    Convert list of atom ids to list of corresponding atom indexes - also implemented in molLego.
+    Convert atom types to corresponding atom number (atomic number).
+
+    Also implemented in molLego.
 
     Parameters
     ----------
-    atom_ids: `list`
-        Atom ids as str entry.
+    atom_types: `list of str`
+        Atom type for each atom.
 
     Returns
-    atom_indexes: `list`
-        Atom indexes.
+    -------
+    atom_numbers: `list of int`
+        Atomic number for each atom.
 
     """
-    atom_indexes = [int(atom_id_index.index(i.lower()))+1 for i in atom_ids]
+    atom_numbers = [int(__ATOM_TYPES__.index(i.lower()))+1 for i in atom_types]
 
-    return atom_indexes
+    return atom_numbers
 
 
 def molecule_to_rdkit(molecule):
