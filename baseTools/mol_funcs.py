@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import sys
 
 from xyz2mol import xyz2mol, read_xyz_file
 from rdkit.Chem import AllChem as rdkit
@@ -97,7 +98,7 @@ def molecule_to_adjacency(molecule):
     rdkit_mol = molecule_to_rdkit(molecule)
 
     # Calculate adjacency matrix.
-    mol_adjacency = GetAdjacencyMatrix(rdkit_mol, useBO=True)
+    mol_adjacency = GetAdjacencyMatrix(rdkit_mol)
 
     return mol_adjacency
 
@@ -112,6 +113,50 @@ def molecule_to_adjacency(molecule):
     
     # Do for two molecules or more? - in which case what format are the results?
 
+def track_paths(current_step, adjacency, current_path=None):
+    """
+    Construct a branch of a path.
+
+    Parameters
+    ----------
+    current_step: `int`
+        Index of molecule of the current step in pathway.
+    adjacency: :numpy:`array`
+        Connecitivty matrix.
+        Entries are 1 for connected points or 0 for unconnected points.
+    current_path: `list`
+        Pathway up to current reaction step.
+
+    Returns
+    -------
+    path_list: `nested list`
+        List of reaction steps for each reaction path.
+    
+    """
+    if current_path is None:
+        prev_step = None
+        current_path = [current_step]
+    else:
+        prev_step = current_path[-1]
+        current_path.append(current_step)
+    current_path = [1]
+    next_steps = np.nonzero(adjacency[current_step,:])[0]
+    print(type(next_steps))
+    print(set(next_steps) - set(current_path))
+    # current_path = current_path + [current_step]
+    # paths = []
+    sys.exit()
+    next_steps = np.nonzero(adjacency[current_step,:])[0]
+    print(next_steps)
+    for step in next_steps:
+        print
+        if step != prev_step:
+            next_path = track_paths(step, adjacency, current_path)
+            print(next_path)
+            
+            for path in next_path:
+                paths.append(path)
+    return paths
 
 def find_paths(current_step, adjacency, prev_step, reindex_map):
     """
@@ -175,17 +220,28 @@ def match_indexes(molecules, reference_mol=None):
         print('No unique atom IDs to use for index start point.')
         raise
     
+    # for mol in molecules:
+    #     adjacency = molecule_to_adjacency(mol)
+    #     start_index = mol.atom_ids.index(start_atom)
+    #     reindex_map = [start_index]
+    #     start_nodes = np.nonzero(adjacency[start_index,:])[0]
+    #     for node in start_nodes:
+    #         reindex_map.append(node)
+    #         reindex_map = find_paths(node, adjacency, start_index, reindex_map)    
+    #     mol.reindex_molecule(reindex_map)
+    #     mol.set_atom_indexes()
+        
+    # Trying actual list
     for mol in molecules:
+        path_list = []
         adjacency = molecule_to_adjacency(mol)
         start_index = mol.atom_ids.index(start_atom)
-        reindex_map = [start_index]
-        start_nodes = np.nonzero(adjacency[start_index,:])[0]
-        for node in start_nodes:
-            reindex_map.append(node)
-            reindex_map = find_paths(node, adjacency, start_index, reindex_map)
-        print(reindex_map)
-        mol.reindex_molecule(reindex_map)
-    
+        # current_path = [start_index]
+        # start_nodes = np.nonzero(adjacency[start_index,:])[0]
+        # for node in start_nodes:
+        path_list = track_paths(start_index, adjacency)
+        print(path_list)
+
     return molecules
 
 
@@ -201,7 +257,7 @@ def recentre_dihedrals(dihedral_vals):
     Returns
     -------
     :pandas:`Series`
-        Recentred dihedral values.
+        Recentered dihedral values.
 
     """ 
     return dihedral_vals.apply(lambda x: x - (x/abs(x))*180)
@@ -228,11 +284,13 @@ def calculate_dihedrals(molecules, dihedrals):
         Molecules with dihedral values set.
 
     """
+    # Convert molecules to rdkit mol.
+    rdkit_mols = [molecule_to_rdkit(mol) for mol in molecules]
+    for mol in rdkit_mols:
+        rdkit_mols[0].AddConformer(mol)
+    
     # Calculate dihedral parameters for each molecule.
     for mol in molecules:
-
-        # Convert molecule to rdkit mol.
-        rdkit_mol = molecule_to_rdkit(mol)
 
         # Find atom indexes for dihedrals.
         dihedral_indexes = {}
