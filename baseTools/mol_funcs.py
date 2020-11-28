@@ -59,16 +59,12 @@ def molecule_to_rdkit(molecule):
         The rdKIT molecule.
     
     """
-    # Set atom indexes if not already set 
-    if hasattr(molecule, 'atom_indexes') == False:
-        molecule.set_atom_indexes()
+    # Set atom indexes.
+    molecule.set_atom_indexes()
     
-    # Use xyz2mol to create rdkit mol object
-    adjacency = xyz.xyz2AC(molecule.atom_indexes, molecule.geom, charge=0, use_huckel=False)
-    for i in adjacency.shape[0]:
-        print(adjacency[1,:])
+    # Use xyz2mol to create rdkit mol object.
     rdkit_mol = xyz2mol(molecule.atom_indexes, molecule.geom)
-
+    
     return rdkit_mol
 
 
@@ -122,37 +118,6 @@ def molecule_to_adjacency(molecule):
     
     # Do for two molecules or more? - in which case what format are the results?
 
-def find_paths(current_step, adjacency, prev_step, reindex_map):
-    """
-    Construct a branch of a reaction path.
-
-    Parameters
-    ----------
-    current_step: `int`
-        Current atom index of path.
-    adjacency: :numpy:`array`
-        Connectivty matrix.
-        Entries are 1 for connected points or 0 for unconnected points.
-    prev_step: `int`
-        Previous atom index in path.
-    reindex_map: `list`
-        Mapping of old index to new position.
-
-    Returns
-    -------
-    reindex_map: `list`
-        Mapping of old index to new position.
-    
-    """
-    # Locate connecting reaction steps for current paths.
-    next_steps = np.nonzero(adjacency[current_step,:])[0]
-    for step in next_steps:
-        if step != prev_step and step not in reindex_map:
-            reindex_map.append(step)
-            reindex_map = find_paths(step, adjacency, current_step, reindex_map)
-    return reindex_map
-
-
 def match_indexes(molecules, reference_mol=None):
     """
     Match indexes of one molecule to another.
@@ -183,17 +148,6 @@ def match_indexes(molecules, reference_mol=None):
     # except:
     #     print('No unique atom IDs to use for index start point.')
     #     raise
-    
-    # for mol in molecules:
-    #     adjacency = molecule_to_adjacency(mol)
-    #     start_index = mol.atom_ids.index(start_atom)
-    #     reindex_map = [start_index]
-    #     start_nodes = np.nonzero(adjacency[start_index,:])[0]
-    #     for node in start_nodes:
-    #         reindex_map.append(node)
-    #         reindex_map = find_paths(node, adjacency, start_index, reindex_map)    
-    #     mol.reindex_molecule(reindex_map)
-    #     mol.set_atom_indexes()
     
     # Set start node
     start_node = 0 
@@ -290,17 +244,15 @@ def calculate_dihedrals(molecules, dihedral_smarts):
         Molecules with dihedral values set.
 
     """
-    # Convert molecules to rdkit mol.
-    rdkit_mols = [molecule_to_rdkit(mol) for mol in molecules]
-    for mol in rdkit_mols:
-        rdkit_mols[0].AddConformer(mol)
-    
     # Calculate dihedral parameters for each molecule.
     for mol in molecules:
 
         # Find atom indexes for dihedrals.
         dihedral_indexes = {}
         for dihed, smarts in dihedral_smarts.items():
+
+            # Convert molecule to rdkit molecule.
+            rdkit_mol = molecule_to_rdkit(mol)
 
             # Find atom indexes for dihedral.
             query_mol = rdkit.MolFromSmarts(smarts)
@@ -309,7 +261,7 @@ def calculate_dihedrals(molecules, dihedral_smarts):
             # Save each set of indexes to dihedral dict.
             for j, ind in enumerate(indexes):
                 dihedral_indexes[dihed + '_' + str(j)] = list(ind)
-        print(dihedral_indexes)
+
         # Calculate dihedral values.
         mol.set_parameters(dihedral_indexes)
 
