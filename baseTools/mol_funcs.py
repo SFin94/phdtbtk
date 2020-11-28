@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 import time
 
 from xyz2mol import xyz2mol, read_xyz_file
+import xyz2mol as xyz
 from rdkit.Chem import AllChem as rdkit
 from rdkit.Chem.rdMolAlign import AlignMol
 from rdkit.Chem.rdmolops import GetAdjacencyMatrix
 from rdkit.Chem.rdmolops import RDKFingerprint
+from rdkit.Chem.rdmolfiles import MolToSmarts
 
 import molLego as ml
 import phdtbtk.baseTools.gen_funcs as gen_funcs
@@ -58,7 +60,7 @@ def molecule_to_rdkit(molecule):
     # Set atom indexes if not already set 
     if hasattr(molecule, 'atom_indexes') == False:
         molecule.set_atom_indexes()
-
+    
     # Use xyz2mol to create rdkit mol object
     rdkit_mol = xyz2mol(molecule.atom_indexes, molecule.geom)
 
@@ -100,7 +102,7 @@ def molecule_to_adjacency(molecule):
     rdkit_mol = molecule_to_rdkit(molecule)
 
     # Calculate adjacency matrix.
-    mol_adjacency = GetAdjacencyMatrix(rdkit_mol, useBO=True)
+    mol_adjacency = GetAdjacencyMatrix(rdkit_mol)
 
     return mol_adjacency
 
@@ -210,7 +212,7 @@ def recentre_dihedrals(dihedral_vals):
     return dihedral_vals.apply(lambda x: x - (x/abs(x))*180)
 
 
-def calculate_dihedrals(molecules, dihedrals):
+def calculate_dihedrals(molecules, dihedral_smarts):
     """
     Locate and calculate values for dihedrals in the molecules.
 
@@ -222,8 +224,8 @@ def calculate_dihedrals(molecules, dihedrals):
     ----------
     molecules: `list` of :molLego:`Molecule`
         Molecules to calculate dihedrals for.
-    dihedrals: `list`
-        Dihedral strings of atom types.
+    dihedral_smarts: `dict`
+        Key is dihedral string and value is dihedral SMARTS string.
 
     Returns
     -------
@@ -239,18 +241,16 @@ def calculate_dihedrals(molecules, dihedrals):
 
         # Find atom indexes for dihedrals.
         dihedral_indexes = {}
-        for i, dihed in enumerate(dihedrals):
+        for dihed, smarts in dihedral_smarts.items():
 
-            # Convert dihedral to smarts and find indexes in molecule.
-            dihedral_smarts = gen_funcs.to_smarts(dihed)
-            query_mol = rdkit.MolFromSmarts(dihedral_smarts)
+            # Find atom indexes for dihedral.
+            query_mol = rdkit.MolFromSmarts(smarts)
             indexes = rdkit_mol.GetSubstructMatches(query=query_mol)
             
             # Save each set of indexes to dihedral dict.
-            dihed_key = gen_funcs.clean_string(dihed)
             for j, ind in enumerate(indexes):
-                dihedral_indexes[dihed_key + '_' + str(j)] = list(ind)
-
+                dihedral_indexes[dihed + '_' + str(j)] = list(ind)
+        print(dihedral_indexes)
         # Calculate dihedral values.
         mol.set_parameters(dihedral_indexes)
 
