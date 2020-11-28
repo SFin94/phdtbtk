@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import sys
+import networkx as nx
 
 from xyz2mol import xyz2mol, read_xyz_file
 import xyz2mol as xyz
@@ -62,6 +64,9 @@ def molecule_to_rdkit(molecule):
         molecule.set_atom_indexes()
     
     # Use xyz2mol to create rdkit mol object
+    adjacency = xyz.xyz2AC(molecule.atom_indexes, molecule.geom, charge=0, use_huckel=False)
+    for i in adjacency.shape[0]:
+        print(adjacency[1,:])
     rdkit_mol = xyz2mol(molecule.atom_indexes, molecule.geom)
 
     return rdkit_mol
@@ -117,7 +122,6 @@ def molecule_to_adjacency(molecule):
     
     # Do for two molecules or more? - in which case what format are the results?
 
-
 def find_paths(current_step, adjacency, prev_step, reindex_map):
     """
     Construct a branch of a reaction path.
@@ -127,7 +131,7 @@ def find_paths(current_step, adjacency, prev_step, reindex_map):
     current_step: `int`
         Current atom index of path.
     adjacency: :numpy:`array`
-        Connecitivty matrix.
+        Connectivty matrix.
         Entries are 1 for connected points or 0 for unconnected points.
     prev_step: `int`
         Previous atom index in path.
@@ -167,31 +171,84 @@ def match_indexes(molecules, reference_mol=None):
 
     """
     # Find unique atom type to start.
-    i = 0
-    unique_atom = False
-    if reference_mol is None:
-        reference_mol = molecules[0]
-    try:
-        while unique_atom == False:
-            start_atom = reference_mol.atom_ids[i]
-            unique_atom = (reference_mol.atom_ids.count(start_atom) == 1)
-            i += 1
-    except:
-        print('No unique atom IDs to use for index start point.')
-        raise
+    # i = 0
+    # unique_atom = False
+    # if reference_mol is None:
+    #     reference_mol = molecules[0]
+    # try:
+    #     while unique_atom == False:
+    #         start_atom = reference_mol.atom_ids[i]
+    #         unique_atom = (reference_mol.atom_ids.count(start_atom) == 1)
+    #         i += 1
+    # except:
+    #     print('No unique atom IDs to use for index start point.')
+    #     raise
+    
+    # for mol in molecules:
+    #     adjacency = molecule_to_adjacency(mol)
+    #     start_index = mol.atom_ids.index(start_atom)
+    #     reindex_map = [start_index]
+    #     start_nodes = np.nonzero(adjacency[start_index,:])[0]
+    #     for node in start_nodes:
+    #         reindex_map.append(node)
+    #         reindex_map = find_paths(node, adjacency, start_index, reindex_map)    
+    #     mol.reindex_molecule(reindex_map)
+    #     mol.set_atom_indexes()
+    
+    # Set start node
+    start_node = 0 
     
     for mol in molecules:
+        # For now use adjacency here - as molecule is wrong then might not want to keep in future.
         adjacency = molecule_to_adjacency(mol)
-        start_index = mol.atom_ids.index(start_atom)
-        reindex_map = [start_index]
-        start_nodes = np.nonzero(adjacency[start_index,:])[0]
-        for node in start_nodes:
-            reindex_map.append(node)
-            reindex_map = find_paths(node, adjacency, start_index, reindex_map)
-        print(reindex_map)
-        mol.reindex_molecule(reindex_map)
-    
+        bonds = adjacency_to_bonds(adjacency)
+
+        # Initialise graph.
+        new = nx.Graph()
+        new.add_edges_from(bonds)
+        
+        # Find all paths from start node by depth first search.
+        path = [start_node]
+        molecule_paths = []
+        for edge in nx.dfs_edges(new, source=start_node):
+            if edge[0] == start_node:
+                molecule_paths.append(path)
+                path = [edge[1]]
+            else:
+                path.append(edge[1])            
+        molecule_paths.append(path)
+
+        # Stack paths in order of length for new index list.
+        new_index = molecule_paths.pop(0)
+        while molecule_paths:
+            path_lengths = [len(path) for path in molecule_paths]
+            next_path = path_lengths.index(min(path_lengths))
+            new_index.extend(molecule_paths.pop(next_path))
+        
+        # Reindex molecule.
+        mol.reindex_molecule(new_index)
+
     return molecules
+
+
+def adjacency_to_bonds(adjacency):
+    """
+    Compute bond list in molecule from ana adjacency matrix.
+
+    Parameters
+    ----------
+    adjacency: :numpy:`array`
+        Connectivty matrix.
+
+    Returns
+    -------
+    bonds: :numpy:`array`
+        List of bonds in terms of atom indexes.
+    
+    """
+    bonds = np.nonzero(adjacency)
+    
+    return np.transpose(bonds)
 
 
 def recentre_dihedrals(dihedral_vals):
@@ -206,7 +263,7 @@ def recentre_dihedrals(dihedral_vals):
     Returns
     -------
     :pandas:`Series`
-        Recentred dihedral values.
+        Recentered dihedral values.
 
     """ 
     return dihedral_vals.apply(lambda x: x - (x/abs(x))*180)
@@ -233,11 +290,13 @@ def calculate_dihedrals(molecules, dihedral_smarts):
         Molecules with dihedral values set.
 
     """
+    # Convert molecules to rdkit mol.
+    rdkit_mols = [molecule_to_rdkit(mol) for mol in molecules]
+    for mol in rdkit_mols:
+        rdkit_mols[0].AddConformer(mol)
+    
     # Calculate dihedral parameters for each molecule.
     for mol in molecules:
-
-        # Convert molecule to rdkit mol.
-        rdkit_mol = molecule_to_rdkit(mol)
 
         # Find atom indexes for dihedrals.
         dihedral_indexes = {}
