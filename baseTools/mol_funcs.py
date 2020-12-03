@@ -118,40 +118,53 @@ def molecule_to_adjacency(molecule):
     
     # Do for two molecules or more? - in which case what format are the results?
 
-def match_indexes(molecules, reference_mol=None):
+def index_by_paths(molecules, reference_mol=None, start_node=0):
     """
-    Match indexes of one molecule to another.
+    Reindex a molecule using order of paths from a starting node.
 
     Parameters
     ----------
-    molecule1: :molLego:`Molecule`
-        Molecule with reference atom indexes.
-    molecule2: :molLego:`Molecule`
-        Molecule to reindex.
+    molecules: `list of :molLego:`Molecule``
+        List of Molecules to be reindexed.
+    reference_mol: :molLego:`Molecule`
+        Moelcule to match indexes to. [Default: None type]
+        If `None` then defaults to first molecule in molecules list.
+    start_node: `int`
+        The index (0 index) of the starting atom to use in the 
+        reference molecule. 
+        Must be a unique atom type or the same in all molecules.
     
     Returns
     -------
-    molecule2: :molLego:`Molecule`
-        Reindexed Molecule.
+    molecules: `list of :molLego:`Molecule``
+        List of reindexed Molecules.
 
     """
-    # Find unique atom type to start.
-    # i = 0
-    # unique_atom = False
-    # if reference_mol is None:
-    #     reference_mol = molecules[0]
-    # try:
-    #     while unique_atom == False:
-    #         start_atom = reference_mol.atom_ids[i]
-    #         unique_atom = (reference_mol.atom_ids.count(start_atom) == 1)
-    #         i += 1
-    # except:
-    #     print('No unique atom IDs to use for index start point.')
-    #     raise
-    
-    # Set start node
-    start_node = 0 
-    
+    # Set reference molecule as first molecule in list if not set.
+    if reference_mol is None:
+        reference_mol = molecules[0]
+
+    # Find unique atom type for start node if not set.
+    if start_node is not None:
+        i = 0
+        unique_atom = False
+        try:
+            while unique_atom == False:
+                start_atom = reference_mol.atom_ids[i]
+                unique_atom = (reference_mol.atom_ids.count(start_atom) == 1)
+                i += 1
+        except:
+            print('No unique atom IDs to use for index start point.')
+            raise
+    else:
+        start_atom = reference_mol.atom_ids[start_node]
+        try: 
+            reference_mol.atom_ids.count(start_atom) == 1
+        except:
+            print('Warning, starting atom is not a unique type. \
+            Assuming same index in all molecules')
+
+    # Reindex each molecule from starting node.
     for mol in molecules:
         # For now use adjacency here - as molecule is wrong then might not want to keep in future.
         adjacency = molecule_to_adjacency(mol)
@@ -162,6 +175,7 @@ def match_indexes(molecules, reference_mol=None):
         new.add_edges_from(bonds)
         
         # Find all paths from start node by depth first search.
+        start_node = mol.atom_ids.index(start_atom)
         path = [start_node]
         molecule_paths = []
         for edge in nx.dfs_edges(new, source=start_node):
@@ -267,7 +281,7 @@ def calculate_dihedrals(molecules, dihedral_smarts):
 
     return molecules
 
-def calculate_conformer_RMSD(molecules):
+def calculate_conformer_RMSD(molecules, reference_mol=None):
     """
     Calculate RMSD with lowest energy molecule.
 
@@ -275,6 +289,9 @@ def calculate_conformer_RMSD(molecules):
     ----------
     molecules: `list` of :molLego:`Molecule`
         Molecules to calculate RMSD for.
+    reference_mol: :molLego:`Molecule`
+        Moelcule to match indexes to. [Default: None type]
+        If `None` then defaults to lowest energy molecule in molecules list.
     
     Returns
     -------
@@ -282,14 +299,15 @@ def calculate_conformer_RMSD(molecules):
         RMSD values for each molecule with the lowest energy molecule.
         
     """
-    # Initalise reference mol and energy from first molecule.
-    lowestE = molecules[0].escf
-    reference_mol = molecule_to_rdkit(molecules[0])
+    # Set reference molecule as lowest energy molecule if not set.
+    if reference_mol is None:
+        lowestE = molecules[0].escf
+        reference_mol = molecule_to_rdkit(molecules[0])
 
-    # Search for lowest energy molecule.
-    for mol in molecules:
-        if mol.escf < lowestE:
-            reference_mol = molecule_to_rdkit(mol) 
+        # Search for lowest energy molecule.
+        for mol in molecules:
+            if mol.escf < lowestE:
+                reference_mol = molecule_to_rdkit(mol) 
 
     # Calculate RMSD with lowest E conformer for each conformer.
     rmsd = []
