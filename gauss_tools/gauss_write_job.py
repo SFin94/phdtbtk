@@ -364,13 +364,13 @@ def parse_comp_presets(preset):
 # Function to process and set molecule geometry and atom ids from input files
 def geom_from_log(input_file, geom_step):
 
-    molecule = ml.init_mol_from_log(input_file, opt_steps=geom_step)
+    molecule = ml.Molecule(input_file, parser=ml.GaussianLog)
     return molecule.geom, molecule.atom_ids
 
-def geom_from_xyz(geom_file, geom_step):
+# def geom_from_xyz(geom_file, geom_step):
 
-    molecule = ml.init_mol_from_xyz(input_file)
-    return molecule.geom, molecule.atom_ids
+#     molecule = ml.init_mol_from_xyz(input_file)
+#     return molecule.geom, molecule.atom_ids
 
 def geom_from_com(input_file, geom_step):
 
@@ -408,7 +408,7 @@ def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=N
 
     # Use input file type to map to function for setting molecule spec
     mol_spec = []
-    geometry_functions = {'log': geom_from_log, 'com': geom_from_com, 'xyz': geom_from_xyz}
+    geometry_functions = {'log': geom_from_log, 'com': geom_from_com}
     cm_functions = {'log': cm_from_log, 'com': cm_from_com}
     
     # Pull geometry and atom ids for molecule depending on file type
@@ -510,6 +510,7 @@ if __name__ == "__main__":
     # Process geom input if optstep is given.
     if len(args.geom_input) == 2:
         geom_input, geom_step = args.geom_input
+        print(geom_step)
     else:
         geom_input = args.geom_input[0]
         geom_step = None

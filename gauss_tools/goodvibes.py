@@ -70,14 +70,14 @@ def process_dataframes(goodvibes_data, mol_data_initial):
 
     Parameters
     ----------
-    goodvibes_data: :pandas:`DataFrame`
+    goodvibes_data : :pandas:`DataFrame`
         Results from GoodVibes calculations.
-    mol_data_initial: :pandas:`DataFrame`
+    mol_data_initial : :pandas:`DataFrame`
         Exisiting molecule data.
 
     Returns
     -------
-    mol_data_final: :pandas:`DataFrame`
+    mol_data_final : :pandas:`DataFrame`
         Processed dataframe of molecules with GoodVibes and initial molecule results.
     
     """
@@ -239,7 +239,7 @@ def process_goodvibes(molecule_file, goodvibes_file, save=None):
         save = goodvibes_file.split('.')[0]
     mol_data_final.to_csv(save + '.csv')    
 
-    return mol_data_final
+    return mol_data_final, mols
 
 
 def compare_rank(mol_data, save=None):
