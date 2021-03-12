@@ -63,7 +63,7 @@ def molecule_to_rdkit(molecule, charge=0):
     molecule_atomic = list(molecule.get_atomic_numbers())
 
     # Use xyz2mol to create rdkit mol object.
-    rdkit_mol = xyz2mol(molecule_atomic, molecule.geometry, charge=charge)
+    rdkit_mol = xyz2mol(molecule_atomic, molecule.geometry, charge=charge)[0]
     
     return rdkit_mol
 
