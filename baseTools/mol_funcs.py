@@ -44,7 +44,7 @@ def atom_type_to_number(atom_types):
     return atom_numbers
 
 
-def molecule_to_rdkit(molecule):
+def molecule_to_rdkit(molecule, charge=0):
     """
     Convert a molLego Molecule to an rdkit Molecule using xyz2mol.
     
@@ -60,10 +60,10 @@ def molecule_to_rdkit(molecule):
     
     """
     # Set atom indexes.
-    molecule.set_atom_indexes()
-    
+    molecule_atomic = list(molecule.get_atomic_numbers())
+
     # Use xyz2mol to create rdkit mol object.
-    rdkit_mol = xyz2mol(molecule.atom_indexes, molecule.geom)
+    rdkit_mol = xyz2mol(molecule_atomic, molecule.geometry, charge=charge)
     
     return rdkit_mol
 
@@ -100,12 +100,10 @@ def molecule_to_adjacency(molecule):
 
     """
     # Convert molecule to rdkit mol.
-    rdkit_mol = molecule_to_rdkit(molecule)
+    rdkit_mol = molecule_to_rdkit(molecule, charge=molecule.charge)
 
     # Calculate adjacency matrix.
-    mol_adjacency = GetAdjacencyMatrix(rdkit_mol)
-
-    return mol_adjacency
+    return GetAdjacencyMatrix(rdkit_mol)
 
 # def test_molecule_indexes():
 
@@ -118,7 +116,7 @@ def molecule_to_adjacency(molecule):
     
     # Do for two molecules or more? - in which case what format are the results?
 
-def index_by_paths(molecules, reference_mol=None, start_node=0):
+def index_by_paths(molecules, reference_mol=None, start_node=0, charge=0):
     """
     Reindex a molecule using order of paths from a starting node.
 
@@ -167,7 +165,7 @@ def index_by_paths(molecules, reference_mol=None, start_node=0):
     # Reindex each molecule from starting node.
     for mol in molecules:
         # For now use adjacency here - as molecule is wrong then might not want to keep in future.
-        adjacency = molecule_to_adjacency(mol)
+        adjacency = molecule_to_adjacency(mol, charge=charge)
         bonds = adjacency_to_bonds(adjacency)
 
         # Initialise graph.
@@ -237,7 +235,7 @@ def recentre_dihedrals(dihedral_vals):
     return dihedral_vals.apply(lambda x: x - (x/abs(x))*180)
 
 
-def calculate_dihedrals(molecules, dihedral_smarts):
+def calculate_dihedrals(molecules, dihedral_smarts, charge=0):
     """
     Locate and calculate values for dihedrals in the molecules.
 
@@ -266,7 +264,8 @@ def calculate_dihedrals(molecules, dihedral_smarts):
         for dihed, smarts in dihedral_smarts.items():
 
             # Convert molecule to rdkit molecule.
-            rdkit_mol = molecule_to_rdkit(mol)
+            rdkit_mol = molecule_to_rdkit(mol, charge=charge)
+            # print(rdkit.MolToSmarts(rdkit_mol))
 
             # Find atom indexes for dihedral.
             query_mol = rdkit.MolFromSmarts(smarts)
@@ -275,13 +274,13 @@ def calculate_dihedrals(molecules, dihedral_smarts):
             # Save each set of indexes to dihedral dict.
             for j, ind in enumerate(indexes):
                 dihedral_indexes[dihed + '_' + str(j)] = list(ind)
-
+        
         # Calculate dihedral values.
         mol.set_parameters(dihedral_indexes)
 
     return molecules
 
-def calculate_conformer_RMSD(molecules, reference_mol=None):
+def calculate_conformer_RMSD(molecules, reference_mol=None, charge=0):
     """
     Calculate RMSD with lowest energy molecule.
 
@@ -302,21 +301,89 @@ def calculate_conformer_RMSD(molecules, reference_mol=None):
     # Set reference molecule as lowest energy molecule if not set.
     if reference_mol is None:
         lowestE = molecules[0].escf
-        reference_mol = molecule_to_rdkit(molecules[0])
+        reference_mol = molecule_to_rdkit(molecules[0], charge=molecules[0].charge)
 
         # Search for lowest energy molecule.
         for mol in molecules:
             if mol.escf < lowestE:
-                reference_mol = molecule_to_rdkit(mol) 
+                reference_mol = molecule_to_rdkit(mol, charge=mol.charge)
+    else:
+        reference_mol = molecule_to_rdkit(reference_mol, charge=reference_mol.charge)
 
     # Calculate RMSD with lowest E conformer for each conformer.
     rmsd = []
     for mol in molecules:
         # Convert molecule to rdkit mol.
-        rdkit_mol = molecule_to_rdkit(mol)
+        rdkit_mol = molecule_to_rdkit(mol, charge=mol.charge)
         try:
             rmsd.append(AlignMol(rdkit_mol, reference_mol))
         except:
             rmsd.append(np.nan)
     
     return rmsd
+
+
+def calculate_dihedral_deviation(conf_diheds, reference_diheds):
+    """
+    Calculate dihedral deviation using Manhatten Distance.
+    
+    Parameters
+    ----------
+    conf_diheds : :pandas:`DataFrame`
+        Geometric data for starting conformation.
+    reference_diheds : :pandas:`DataFrame`
+        Geometric data for end conformation.
+
+    Returns
+    -------
+    `float`
+        Dihedral deviation between the two conformers.
+
+    """
+    num_dihedrals = len(conf_diheds)
+
+    # Calculate recentred dihedrals.
+    reference_diheds_rc = phdtbtk.recentre_dihedrals(reference_diheds)
+    conf_diheds_rc = phdtbtk.recentre_dihedrals(conf_diheds)
+    
+    # Calculate normalised deviation for both dihedral sets.
+    diff = np.abs(conf_diheds - reference_diheds)/180.
+    diff_rc = np.abs(conf_diheds_rc - reference_diheds_rc)/180.
+
+    # Calculate deviation using smallest differences.
+    diff_sum = np.minimum(diff, diff_rc).sum()
+    
+    return diff_sum/num_dihedrals
+
+
+def calculate_dihedral_deviation_l2(conf_diheds, reference_diheds):
+    """
+    Calculate dihedral deviation using Euclidean Distance.
+    
+    Parameters
+    ----------
+    conf_diheds : :pandas:`DataFrame`
+        Geometric data for starting conformation.
+    reference_diheds : :pandas:`DataFrame`
+        Geometric data for end conformation.
+
+    Returns
+    -------
+    `float`
+        Dihedral deviation between the two conformers.
+
+    """
+    num_dihedrals = len(conf_diheds)
+
+    # Calculate recentred dihedrals.
+    reference_diheds_rc = phdtbtk.recentre_dihedrals(reference_diheds)
+    conf_diheds_rc = phdtbtk.recentre_dihedrals(conf_diheds)
+    
+    # Calculate normalised deviation for both dihedral sets.
+    diff = ((conf_diheds - reference_diheds)/180.)**2
+    diff_rc = ((conf_diheds_rc - reference_diheds_rc)/180.)**2
+
+    # Calculate  using smallest differences.
+    sqrt_diff_sum = np.sqrt(np.minimum(diff, diff_rc).sum())
+    
+    return diff_sum/num_dihedrals

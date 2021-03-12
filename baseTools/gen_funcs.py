@@ -7,7 +7,7 @@ import pandas as pd
 import molLego as ml
 
 
-def process_input_file(input_file):
+def process_input_file(input_file, parser, molecule=ml.Molecule):
     """
     Process input file creating DataFrame of molecule information and/or Molecule/MoleculeThermo objects.
     
@@ -31,7 +31,7 @@ def process_input_file(input_file):
 
     # Process Molecule objects and DataFrame if direct input source
     if file_type == 'conf':
-        mol_names, mols = ml.construct_mols(input_file)
+        mol_names, mols = ml.construct_mols(input_file, parser, molecule)
         mol_df = ml.mols_to_dataframe(mols, mol_names=mol_names)
 
     elif file_type == 'log':
