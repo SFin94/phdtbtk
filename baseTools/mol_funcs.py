@@ -326,8 +326,8 @@ def calculate_dihedral_deviation(conf_diheds, reference_diheds):
     num_dihedrals = len(conf_diheds)
 
     # Calculate recentred dihedrals.
-    reference_diheds_rc = phdtbtk.recentre_dihedrals(reference_diheds)
-    conf_diheds_rc = phdtbtk.recentre_dihedrals(conf_diheds)
+    reference_diheds_rc = recentre_dihedrals(reference_diheds)
+    conf_diheds_rc = recentre_dihedrals(conf_diheds)
     
     # Calculate normalised deviation for both dihedral sets.
     diff = np.abs(conf_diheds - reference_diheds)/180.
@@ -358,8 +358,8 @@ def calculate_dihedral_deviation_l2(conf_diheds, reference_diheds):
     num_dihedrals = len(conf_diheds)
 
     # Calculate recentred dihedrals.
-    reference_diheds_rc = phdtbtk.recentre_dihedrals(reference_diheds)
-    conf_diheds_rc = phdtbtk.recentre_dihedrals(conf_diheds)
+    reference_diheds_rc = recentre_dihedrals(reference_diheds)
+    conf_diheds_rc = recentre_dihedrals(conf_diheds)
     
     # Calculate normalised deviation for both dihedral sets.
     diff = ((conf_diheds - reference_diheds)/180.)**2
@@ -368,7 +368,7 @@ def calculate_dihedral_deviation_l2(conf_diheds, reference_diheds):
     # Calculate  using smallest differences.
     sqrt_diff_sum = np.sqrt(np.minimum(diff, diff_rc).sum())
     
-    return diff_sum/num_dihedrals
+    return sqrt_diff_sum/num_dihedrals
 
 def push_geom_xyz(output_file, molecule):
     """
