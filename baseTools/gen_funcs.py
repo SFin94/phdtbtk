@@ -84,7 +84,7 @@ def readlines_reverse(input_file):
 
 def clean_string(dirty_string):
     """
-    Remove symbols from string.
+    Remove symbols from string leaving only alphanumeric characters.
 
     Parameters
     ----------

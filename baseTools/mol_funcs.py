@@ -21,7 +21,6 @@ import phdtbtk.baseTools.gen_funcs as gen_funcs
 # Global list of atoms - index matches ar
 __ATOM_TYPES__ = ['h',  'he', 'li', 'be', 'b',  'c',  'n',  'o',  'f',  'ne', 'na', 'mg', 'al', 'si', 'p',  's',  'cl', 'ar', 'k',  'ca', 'sc', 'ti', 'v ', 'cr', 'mn', 'fe', 'co', 'ni', 'cu', 'zn', 'ga', 'ge', 'as', 'se', 'br', 'kr', 'rb', 'sr', 'y',  'zr', 'nb', 'mo', 'tc', 'ru', 'rh', 'pd', 'ag', 'cd', 'in', 'sn', 'sb', 'te', 'i',  'xe', 'cs', 'ba', 'la', 'ce', 'pr', 'nd', 'pm', 'sm', 'eu', 'gd', 'tb', 'dy', 'ho', 'er', 'tm', 'yb', 'lu', 'hf', 'ta', 'w',  're', 'os', 'ir', 'pt', 'au', 'hg', 'tl', 'pb', 'bi', 'po', 'at', 'rn', 'fr', 'ra', 'ac', 'th', 'pa', 'u', 'np', 'pu']
 
-
 def atom_type_to_number(atom_types):
     """
     Convert atom types to corresponding atom number (atomic number).
@@ -67,6 +66,21 @@ def molecule_to_rdkit(molecule, charge=0):
     
     return rdkit_mol
 
+def molecule_to_adjacency(molecule):
+    """
+    Construct an adjacency matrix from a tuple containing lists of connected bonds.
+    
+    Parameters
+    ----------
+    molecule: :molLego:`Molecule`
+        Molecule to calculate adjacency matrix for.
+
+    """
+    # Convert molecule to rdkit mol.
+    rdkit_mol = molecule_to_rdkit(molecule, charge=molecule.charge)
+
+    # Calculate adjacency matrix.
+    return GetAdjacencyMatrix(rdkit_mol)
 
 def bonds_to_adjacency(bonds):
     """
@@ -88,33 +102,24 @@ def bonds_to_adjacency(bonds):
 
     return mol_adjacency
 
-
-def molecule_to_adjacency(molecule):
+def adjacency_to_bonds(adjacency):
     """
-    Construct an adjacency matrix from a tuple containing lists of connected bonds.
-    
+    Compute bond list in molecule from ana adjacency matrix.
+
     Parameters
     ----------
-    molecule: :molLego:`Molecule`
-        Molecule to calculate adjacency matrix for.
+    adjacency: :numpy:`array`
+        Connectivty matrix.
 
-    """
-    # Convert molecule to rdkit mol.
-    rdkit_mol = molecule_to_rdkit(molecule, charge=molecule.charge)
-
-    # Calculate adjacency matrix.
-    return GetAdjacencyMatrix(rdkit_mol)
-
-# def test_molecule_indexes():
-
-    # Find atom indexes (number and type)
-    # Might need bond adjacency? - can use if molecule
-
-    # Check is same or not
-
-    # Check topology too
+    Returns
+    -------
+    bonds: :numpy:`array`
+        List of bonds in terms of atom indexes.
     
-    # Do for two molecules or more? - in which case what format are the results?
+    """
+    bonds = np.nonzero(adjacency)
+    
+    return np.transpose(bonds)
 
 def index_by_paths(molecules, reference_mol=None, start_node=0, charge=0):
     """
@@ -195,27 +200,6 @@ def index_by_paths(molecules, reference_mol=None, start_node=0, charge=0):
         mol.reindex_molecule(new_index)
 
     return molecules
-
-
-def adjacency_to_bonds(adjacency):
-    """
-    Compute bond list in molecule from ana adjacency matrix.
-
-    Parameters
-    ----------
-    adjacency: :numpy:`array`
-        Connectivty matrix.
-
-    Returns
-    -------
-    bonds: :numpy:`array`
-        List of bonds in terms of atom indexes.
-    
-    """
-    bonds = np.nonzero(adjacency)
-    
-    return np.transpose(bonds)
-
 
 def recentre_dihedrals(dihedral_vals):
     """
@@ -322,7 +306,6 @@ def calculate_conformer_RMSD(molecules, reference_mol=None, charge=0):
     
     return rmsd
 
-
 def calculate_dihedral_deviation(conf_diheds, reference_diheds):
     """
     Calculate dihedral deviation using Manhatten Distance.
@@ -355,7 +338,6 @@ def calculate_dihedral_deviation(conf_diheds, reference_diheds):
     
     return diff_sum/num_dihedrals
 
-
 def calculate_dihedral_deviation_l2(conf_diheds, reference_diheds):
     """
     Calculate dihedral deviation using Euclidean Distance.
@@ -387,3 +369,22 @@ def calculate_dihedral_deviation_l2(conf_diheds, reference_diheds):
     sqrt_diff_sum = np.sqrt(np.minimum(diff, diff_rc).sum())
     
     return diff_sum/num_dihedrals
+
+def push_geom_xyz(output_file, molecule):
+    """
+    Output molecule to an .xyz file.
+
+    Parameters
+    ----------
+    output_file: `str`
+        The name of the output xyz file.
+    molecule: `Molecule object`
+        The molecule to be output.
+    
+    """
+    # Open output file, print header lines then atom indexes and cartesian coordinates to file
+    with open(output_file + '.xyz', 'w+') as out_file:
+        print(molecule.atom_number, file=out_file)
+        print('Structure of {}'.format(output_file.split('.')[0]), file=out_file)
+        for atom_ind, atom in enumerate(molecule.atom_ids):
+            print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geom[atom_ind]), file=out_file)
