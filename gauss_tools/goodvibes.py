@@ -13,8 +13,6 @@ from sklearn.preprocessing import LabelEncoder
 import phdtbtk
 import molLego as ml
 
-
-
 def process_mol_input(file_name, parser=ml.GaussianLog, 
                       mol_type=ml.GaussianThermoMolecule,
                       as_dataframe=False):
