@@ -16,10 +16,52 @@ from rdkit.Chem.rdmolops import RDKFingerprint
 from rdkit.Chem.rdmolfiles import MolToSmarts
 
 import molLego as ml
-import phdtbtk.baseTools.gen_funcs as gen_funcs
+import phdtbtk.base_tools.gen_funcs as gen_funcs
 
 # Global list of atoms - index matches ar
 __ATOM_TYPES__ = ['h',  'he', 'li', 'be', 'b',  'c',  'n',  'o',  'f',  'ne', 'na', 'mg', 'al', 'si', 'p',  's',  'cl', 'ar', 'k',  'ca', 'sc', 'ti', 'v ', 'cr', 'mn', 'fe', 'co', 'ni', 'cu', 'zn', 'ga', 'ge', 'as', 'se', 'br', 'kr', 'rb', 'sr', 'y',  'zr', 'nb', 'mo', 'tc', 'ru', 'rh', 'pd', 'ag', 'cd', 'in', 'sn', 'sb', 'te', 'i',  'xe', 'cs', 'ba', 'la', 'ce', 'pr', 'nd', 'pm', 'sm', 'eu', 'gd', 'tb', 'dy', 'ho', 'er', 'tm', 'yb', 'lu', 'hf', 'ta', 'w',  're', 'os', 'ir', 'pt', 'au', 'hg', 'tl', 'pb', 'bi', 'po', 'at', 'rn', 'fr', 'ra', 'ac', 'th', 'pa', 'u', 'np', 'pu']
+
+def process_mol_input(file_name, parser=ml.GaussianLog, 
+                      mol_type=ml.GaussianThermoMolecule,
+                      as_dataframe=False):
+    """
+    Create Molecules or molecule DataFrame from input file.
+
+    Input file can be *.csv containing previously processed molecule
+    data. Or *.conf containing list of molecules to be processed. For
+    a *.conf lists of molecule names and Molecule objects will be 
+    returned unless as_dataframe is set to ``True``.
+
+    Parameters
+    ----------
+    file_name : :class: `str`
+        Name/path of molecule input file to be processed.
+
+    parser : :OutputParser:
+        Parser class to use for calculation output.
+
+    molecule_type : :Molecule:
+        Molecule class to use for calculation output.
+    
+    as_dataframe : :class:`bool`
+        [Default:``False``] If True returns data frame.
+        If False returns molecules and molecule names.
+
+    Returns
+    -------
+    molecules : :class:`list` of :Molecule:
+        Molecule objects for each file in system conf file.
+
+    """
+    if file_name.split('.')[-1] == 'csv':
+        return pd.read_csv(file_name, index_col=0)
+
+    elif file_name.split('.')[-1] == 'conf':
+        mol_names, mols = ml.construct_mols(file_name, parser=parser, molecule_type=mol_type)
+        if as_dataframe == False:
+            return mol_names, mols
+        else:
+            return ml.mols_to_dataframe(mols, mol_names=mol_names)
 
 def atom_type_to_number(atom_types):
     """
