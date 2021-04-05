@@ -418,9 +418,9 @@ def push_geom_xyz(output_file, molecule):
 
     Parameters
     ----------
-    output_file: `str`
+    output_file : :class:`str`
         The name of the output xyz file.
-    molecule: `Molecule object`
+    molecule : :Molecule:
         The molecule to be output.
     
     """
@@ -430,3 +430,29 @@ def push_geom_xyz(output_file, molecule):
         print('Structure of {}'.format(output_file.split('.')[0]), file=out_file)
         for atom_ind, atom in enumerate(molecule.atom_ids):
             print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geom[atom_ind]), file=out_file)
+
+def parameter_dict_to_ids(parameter_dict):
+    """
+    Create geometric parameter ids from dict of parameters.
+
+    Parameters
+    ----------
+    parameter_dict : :class:`dict`
+        Key is atom types of geometric parameter.
+        Value is atom index of geometric parameter.
+    
+    Returns
+    -------
+    parameter_ids : :class:`list` of `str`
+        The parameter ids in the form atom_type atom_ind - ...
+        for each atom involved in the paramter.
+        Example: P0-S1
+    
+    """
+    parameter_ids = []
+    for param_type, param_ids in parameter_dict.items():
+        param = [param_type[i] + str(param_ids[i]) 
+                 for i in range(len(param_ids))]
+        parameter_ids.append('-'.join(param))
+    
+    return parameter_ids
