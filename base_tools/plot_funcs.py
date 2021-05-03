@@ -179,7 +179,7 @@ def plot_mols_quantity(molecule_df,
         mol_labels = molecule_df.index
 
     # Set x and y labels and ticks
-    ax.set_xticklabels(mol_labels, rotation=15)
+    ax.set_xticklabels(mol_labels, rotation=25, fontsize=11)
     if len(quantity_column) == 1:
         y_label = quantity_column[0]
     else:
@@ -278,7 +278,7 @@ def plot_param_quantity(molecule_df,
                 marker=None, alpha=0.4, color=colour[1])
 
     # Plot settings.
-    ax.set_ylabel(f'$\Delta$ {quantity_column[10:]}', fontsize=13)
+    ax.set_ylabel(f'$\Delta$ {quantity_column[9:]}', fontsize=13)
     ax.set_xlabel(parameter_column, fontsize=13)
     # plt.legend(fontsize=13)
 
@@ -293,6 +293,7 @@ def plot_PES(molecule_df,
              save=None, 
              colour=None, 
              opt_filter=True,
+             max_val=None,
              fig=None, 
              ax=None):
     """
@@ -359,12 +360,14 @@ def plot_PES(molecule_df,
                              (param_one_grid, param_two_grid))
 
     # Set cmap if none provided.
-    if colour == None:
+    if colour is None:
         colour = sns.cubehelix_palette(dark=0, as_cmap=True)
 
     # Plot filled contour and add colour bar.
+    if max_val is None:
+        max_val = max(molecule_df[quantity_column]+10)
     c = ax.contourf(param_one_range, param_two_range, 
-                    interp_quant, 20, cmap=colour, vmax=150)
+                    interp_quant, 20, cmap=colour, vmax=max_val)
     fig.subplots_adjust(right=0.8)
     cb = fig.colorbar(c)
     cb.set_label(f'$\Delta$ {quantity_column[9:]}', fontsize=13)
@@ -378,7 +381,8 @@ def plot_PES(molecule_df,
 
     return fig, ax
 
-def normalise_parameters(molecule_df, parameter_columns):
+def normalise_parameters(molecule_df, 
+                         parameter_columns):
     """
     Normalise geometric (bond/angle/dihedral) parameters to 0:1 range.
 
@@ -404,10 +408,14 @@ def normalise_parameters(molecule_df, parameter_columns):
     """
     # Normalise parameters to [0:1] range.
     for param in parameter_columns:
-        if len(param) == 2:
-            molecule_df["norm "+key] = (molecule_df[param]/
-                molecule_df[param].max())
-        elif len(param) == 3:
+        if len(param.split('-')) == 2:
+            std_max = molecule_df[parameter_columns].std().max()
+            # molecule_df["norm "+param] = (molecule_df[param]/
+                # molecule_df[param].max())
+            shift = molecule_df[param].mean() - 2*std_max
+            molecule_df["norm "+param] = ((molecule_df[param] - shift)
+                                        /(4*std_max))
+        elif len(param.split('-')) == 3:
             molecule_df["norm "+param] = (
                 molecule_df[param]/180.)
         else:
@@ -515,7 +523,7 @@ def plot_conf_radar(molecule_df,
     # Plot for each conformer
     for mol in molecule_df.index:
         ax.plot(plot_angles, molecule_df.loc[mol, norm_parameter_columns],
-                label=mol, color=molecule_df.loc[mol, 'colour'])
+                label=mol.split('/')[-1], color=molecule_df.loc[mol, 'colour'])
         ax.fill(plot_angles, molecule_df.loc[mol, norm_parameter_columns], 
                 color=molecule_df.loc[mol, 'colour'], alpha=0.1)
 
@@ -523,7 +531,7 @@ def plot_conf_radar(molecule_df,
     ax.set_xticks(plot_angles[:-1])
     ax.set_xticklabels(parameter_columns)
     ax.set_yticks([])
-    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 1.04), ncol=3, 
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.04), ncol=3, 
               frameon=False, handletextpad=0.1, fontsize=9)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
 
@@ -531,6 +539,9 @@ def plot_conf_radar(molecule_df,
         plt.savefig(save + '.png')
 
     return fig, ax
+
+
+
 
 # def plot_conf_map(conformer_data, geom_parameters, save=None, colour=None, energy_col=None):
 #     """
