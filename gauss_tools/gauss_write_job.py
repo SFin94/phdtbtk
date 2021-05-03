@@ -1,294 +1,19 @@
+"""Module containing workflow and functions to write or edit Gaussian com file."""
+
 import sys
 import argparse
 import numpy as np
 import pandas as pd
 
+from phdtbtk.gauss_tools.gauss_com import GaussianCom
 import molLego as ml
 
 
+"""Has functions for parsing gometry, charge, multiplicty from different sources.
+The main routine sets a GaussianCom object and writes the file."""
+
 # Change path to location of presets file here
 presets_path = '/Volumes/home/bin/.presets'
-
-class GaussianCom():
-    """
-    Represents a Gaussian com file.
-
-    Attributes
-    ----------
-    output_file : :class:`str`
-        Filepath/name for output file.
-    nproc : :class:`int`
-        Number of prcoessors required for calculation.
-    mem : :class:`int`
-        Amount of memory required for calculation.
-    job_title: :class:`str`
-        The title line for the job.
-    molecule_spec: :class:`list of str`
-        The molecule specification input lines (charge and multiplicity, x y z coordinates).
-    job_spec : :class:`str`
-        The job specification line containing all Gaussian commmands for the calculation.
-    modred_input: :class:`list of str`
-        The modredundant input lines.
-    allchk : :class:`bool`
-        If ``True`` no molecule specification or job title required.
-    chk : :class:`bool`
-        If ``True``, molecule specification will contain only charge and multiplicity.
-
-    """
-
-    def __init__(self, output_file, job_type='fopt', nproc=20, mem=62000, method='M062X', basis_set='6-311++G(d,p)', smd=None, modred_input=None, geometry=None, atom_ids=None, charge=None, multiplicity=None):
-        """
-        Initialise from input parameters.
-
-        Parameters
-        ----------
-        output_file : `str`
-            The file name/path of the output com file.
-        job_type : `str`
-            The type of calculation [one of: freq, fopt, opt, ts, reopt, scan; default: fopt].
-        nproc : `int`
-            Number of prcoessors required for calculation [default: 20].
-        mem : `int`
-            Amount of memory required for calculation [default: 62000 MB].
-        method : `str`
-            The method of the calculation (functional, etc.) [default: 'M062X'].
-        basis_set : `str`
-            The basis set of the calculation [default: '6-311++G(d,p)'].
-        smd : `bool`
-            ``True`` if SMD implicit solvent model for water required.
-            Otherwise gas phase calcualtion.
-        modred_input: `str`
-            Modredundant input lines.
-            Otherwise None type if no Modredundant input required [default: None].
-        geometry: `np array`
-            x, y, z coordinates for each atom in molecule.
-            Otherwise None type if molecule to be read from chk [default: None].
-        atom_ids: `list`
-            The atom ID for ech atom in the molecule.
-            Otherwise None type if molecule to be read from chk [default: None].
-        charge: `int`
-            The charge of the molecule.
-            Otherwise None type if molecule spec to be read from chk [default: None].
-        multiplicity: `int`
-            The multiplicity of the molecule.
-            Otherwise None type if molecule spec to be read from chk [default: None].
-
-        """
-        # Set output file, computational resources and job title
-        self.output_file = self.set_output_file(output_file)
-        self.nproc, self.mem = nproc, mem
-        self.job_title = self.set_job_title(job_type)
-
-        # Set molecule specification or allchk/chk flags
-        if all([i is None for i in [geometry, atom_ids, charge, multiplicity]]):
-            self.allchk = True
-            self.chk = False
-        else:
-            self.molecule_spec = self.set_molecule_spec(geometry, atom_ids, charge, multiplicity)
-            self.allchk = False
-        
-        # Set job specification and modredundant input
-        self.job_spec = self.set_job_spec(method, basis_set, job_type, modred_input, smd)
-        if modred_input is not None:
-            self.modred_input = modred_input.split(',')
-        else:
-            self.modred_input = modred_input
-
-
-    def set_output_file(self, output_file):
-        """
-        Remove '.com' extension from output file if present.
-
-        Parameters
-        ----------
-        output_file : `str`
-            The file name/path of the output com file.
-
-        Returns
-        -------
-        output_file : `str`
-            Processed file name/path of the output com file.
-
-        """
-        if '.com' in output_file:
-            return output_file.split('.')[0]
-        else:
-            return output_file
-
-
-    def _set_job_type(self, job_type):
-        """
-        Set keywords needed for job type in the job specification.
-
-        Parameters
-        ----------
-        job_type : `str`
-            The type of calculation [one of: freq, fopt, opt, ts, reopt, scan; default: fopt].
-        
-        Returns
-        -------
-        job_input: `str`
-            Gaussian keywords for specified job type.
-        
-        """
-        # Dict of predefined job types and keywords
-        job_type_input = {'opt': ' Opt(Tight)' , 'reopt':' Opt(Tight,RCFC) Freq', 'fopt': ' Opt(Tight) Freq', 'freq': ' Freq', 'ts': ' Opt(Tight,TS NoEigen,RCFC) Freq', 'scan': ' Opt(MaxCycles=50)'}
-
-        # Sets job type keywords to matching dict entry or lets user enter own input
-        if job_type.lower() in job_type_input:
-            return job_type_input[job_type]
-        elif job_type.lower() == 'own':
-            job_input = ' ' + input("Enter job inputs as they would appear in Gaussian .com file:\n")
-            return job_input
-        else:
-            raise Exception("Job type does not match known type")
-
-
-    def _set_modred_keyword(self, current_job_spec):
-        """Edit class attribute job_spec to add ModRedundant keyword in Opt section."""
-        try: 
-            # Find position of opt in job spec and split around this point
-            opt_position = current_job_spec.lower().index('opt')
-
-            # Insert modred keyword after Opt
-            start = current_job_spec[:opt_position]
-            end = current_job_spec[opt_position+4:]
-            job_spec = start + 'Opt(ModRedundant,' + end
-
-            return job_spec
-            
-        except:
-            print('Opt keyword not mentioned in job spec but modredundant input given')
-
-
-    def set_job_spec(self, method, basis_set, job_type, modred_input, smd):
-        """
-        Set job specification from all keywords.
-
-        Parameters        
-        ----------
-        method : `str`
-            The method of the calculation (functional, etc.) [default: 'M062X'].
-        basis_set : `str`
-            The basis set of the calculation [default: '6-311++G(d,p)'].
-        job_type : `str`
-            The type of calculation [one of: freq, fopt, opt, ts, reopt, scan; default: fopt].
-        modred_input: `str`
-            Modredundant input lines.
-            Otherwise None type if no Modredundant input required [default: None].
-        smd : `bool`
-            ``True`` if SMD implicit solvent model for water required.
-            Otherwise gas phase calcualtion.
-
-        Returns
-        -------
-        job_spec: `str`
-            The job specification line containing all Gaussian commmands for the calculation.
-
-        """
-        # Initialise job spec
-        job_spec = '#P '
-
-        # Set method and basis set and append to job spec
-        job_method = method + '/' + basis_set
-        job_spec += job_method
-
-        # Add job type keywords
-        job_spec += self._set_job_type(job_type)
-
-        # Edit Opt section of job spec if ModRedundant input present
-        if modred_input != None:
-           job_spec = self._set_modred_keyword(job_spec)
-
-        # Set SMD keyword
-        job_spec += ' SCRF(SMD)'*(smd == True)
-
-        # Set level of geom/guess read options
-        job_spec += ' Geom(AllCheck) Guess(Read)'*(self.allchk==True)
-        job_spec += ' Geom(Check) Guess(Read)'*(self.chk==True)
-
-        # Add convergence criteria
-        job_spec += ' SCF(Conver=9) Int(Grid=UltraFine)'
-
-        return job_spec
-
-
-    def set_molecule_spec(self, geometry, atom_ids, charge, multiplicity):
-        """
-        Process atom ids and coordinates in to format for .com file geom input.
-
-        Parameters
-        ----------
-        geometry: `np array`
-            x, y, z coordinates for each atom in molecule.
-            Otherwise None type if molecule to be read from chk [default: None].
-        atom_ids: `list`
-            The atom ID for ech atom in the molecule.
-            Otherwise None type if molecule to be read from chk [default: None].
-        charge: `int`
-            The charge of the molecule.
-            Otherwise None type if molecule spec to be read from chk [default: None].
-        multiplicity: `int`
-            The multiplicity of the molecule.
-            Otherwise None type if molecule spec to be read from chk [default: None].
-
-        Returns
-        -------
-        molecule_spec: `list of str`
-            The molecule specification input lines (charge and multiplicity, x y z coordinates).
-
-        """
-        # Set charge and multiplicity as first line of molecule specification
-        molecule_spec = [str(charge) + ' ' + str(multiplicity)]
-        
-        # If x, y, z coordinates of molecule given then append to molecule specification
-        if geometry is not None:
-            # Set formatted line for each atom of atom id and x, y, z coordinate
-            for i in range(len(atom_ids)):
-                molecule_spec.append('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom_ids[i], geometry[i,:]))
-            self.chk = False
-        else:
-            self.chk = True
-
-        return molecule_spec
-
-
-    def set_job_title(self, job_type):
-        """Set job title as combination of output file name and calculation type."""
-        return self.output_file + ' ' + job_type
-
-
-    def write_com_file(self):
-        """Write new com file."""
-        # Open destination .com file
-        with open(self.output_file+'.com', 'w+') as output:
-
-            # Write comp settings - note chk file name will be same as .com file
-            print('%chk={}'.format(self.output_file), file=output)
-            print('%nprocshared={:d}'.format(self.nproc), file=output)
-            print('%mem={:d}MB'.format(self.mem), file=output)
-
-            # Write job spec
-            print(self.job_spec + '\n', file=output)
-            
-            # Write title and molecule spec
-            if self.allchk == False:
-                print(self.job_title + '\n', file=output)
-                for line in self.molecule_spec:
-                    print(line, file=output)
-
-            # Write modredundant input
-            if self.modred_input != None:
-                print('', file=output)
-                for line in self.modred_input:
-                    print(line, file=output)
-
-            # Necessary white space to end
-            print('\n\n', file=output)
-
-
-##############################################################################################################
-# Outside of class - functions that process information from various sources to use for writing the .com file
 
 def parse_com_file(initial_com_file, section=2):
     """
@@ -296,18 +21,21 @@ def parse_com_file(initial_com_file, section=2):
     
     Parameters
     ----------
-    initial_com_file: `str`
+    initial_com_file : :class:`str`
         The file path/name of input .com file.
-    section: `list of int`
-        Key of target block to pull of .com file:
-                            2 - Pull charge/multiplicty and geometry section [default].
-                            3 - Pull modredundant input.
-                            Possilibity for other pre done input (e.g. pseudopotential) but must know which section is required.
+    section : :class:`list` of `int`
+        Key of target block to pull of .com file.
+        Each 'target block' is the .com input section 
+        seperated by empty lines.
+            2 - Pull charge/multiplicty and geometry section [default].
+            3 - Pull modredundant input.
+            Possilibity for other pre done input (e.g. pseudopotential)
+            but must know which section is required.
 
     Returns
     -------
-    section_output: `list of str`
-        The lines from the targetted block of the input .com file.
+    section_output : :class:`list` of `str`
+        The lines from the targeted block of the input .com file.
     
     """
     # Initialise variables
@@ -327,22 +55,22 @@ def parse_com_file(initial_com_file, section=2):
     
     return section_output
 
-
 def parse_comp_presets(preset):
     """
-    Set computational resources from corresponding line in presets file.
+    Set computational resources from line in presets file.
 
     Parameters
     ----------
-    preset: `int`
-        Index of desired line (1 index) in presets file to set resources from.
+    preset : :class:`int`
+        Index of desired line (1 index) in presets file 
+        to set resources from.
 
     Returns
     -------
-    nproc : `int`
+    nproc : :class:`int`
         Number of prcoessors required for calculation.
-    mem_MB : `int`
-        Amount of memory required for calculation.
+    mem_MB : :class:`int`
+        Amount of memory (MB) required for calculation.
 
     """
     # Parses in presets from defined file and sets computational variables
@@ -360,20 +88,16 @@ def parse_comp_presets(preset):
     
     return nproc, mem_MB
 
-
-# Function to process and set molecule geometry and atom ids from input files
-def geom_from_log(input_file, geom_step):
-
+def geom_from_log(input_file, calculation_step=None):
+    """Extract geometry and atom ids from .log file."""
     molecule = ml.Molecule(input_file, parser=ml.GaussianLog)
-    return molecule.geom, molecule.atom_ids
+    if calculation_step is not None:
+        trajectory_step = molecule.parser.pull_trajectory(calculation_step=calculation_step)[calculation_step]
+        molecule.geometry = trajectory_step['geom']
+    return molecule.geometry, molecule.atom_ids
 
-# def geom_from_xyz(geom_file, geom_step):
-
-#     molecule = ml.init_mol_from_xyz(input_file)
-#     return molecule.geom, molecule.atom_ids
-
-def geom_from_com(input_file, geom_step):
-
+def geom_from_com(input_file):
+    """Extract geometry as coordinates and atom ids from .com file."""
     molecule_spec = parse_com_file(input_file)[1:]
     atom_ids = []
     atom_coords = []
@@ -387,25 +111,39 @@ def geom_from_com(input_file, geom_step):
 
     return np.asarray(atom_coords), atom_ids
 
-# Function to process and set molecule charge and multiplicity from input files
 def cm_from_log(input_file):
-
-    molecule = ml.GaussianLog(input_file)
-    multiplicity = molecule.pull_multiplicity()
+    """Extract charge/multplicity from .log file."""
+    molecule = ml.Molecule(input_file, parser=ml.GaussianLog)
+    multiplicity = molecule.parser.pull_multiplicity()
     return molecule.charge, multiplicity
     
 def cm_from_com(input_file):
-
+    """Extract charge/multplicity from .com file."""
     molecule_spec = parse_com_file(input_file)[0]
-    charge, multiplicity = [
-        int(i) 
-        for i in molecule_spec.split()
-    ]
+    charge, multiplicity = [int(i) 
+        for i in molecule_spec.split()]
     return charge, multiplicity
 
+def get_molecule(input_file, pull_geometry=True, pull_cm=False):
+    """
+    Retrieve molecule information from specified sources.
 
-def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=None):
+    Parameters
+    ----------
+    input_file : :class:`str`
+        File containing molecule informaton to retrieve.
+    pull_geometry : :class:`bool`
+        If ``True`` retrives geometry and atom ids from input file.
+    pull_cm : :class:`bool`
+        If ``True`` retrives charge/multiplicty from input file.
 
+    Returns
+    -------
+    mol_spec : :class:`list`
+        List of molecule information depending on target.
+        Would contain: geometry, atom ids, charge/multiplicity 
+
+    """
     # Use input file type to map to function for setting molecule spec
     mol_spec = []
     geometry_functions = {'log': geom_from_log, 'com': geom_from_com}
@@ -414,7 +152,7 @@ def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=N
     # Pull geometry and atom ids for molecule depending on file type
     if pull_geometry:
         input_file_type = input_file.split('.')[-1]
-        mol_spec += geometry_functions[input_file_type](input_file, geom_step)
+        mol_spec += geometry_functions[input_file_type](input_file)
 
     # Pull charge and multiplicity from input file or raw entry
     if pull_cm:
@@ -427,7 +165,6 @@ def set_molecule_spec(input_file, pull_geometry=True, pull_cm=False, geom_step=N
             except:
                 print('Error setting charge and multiplicity, provide file source or list of values')
     return mol_spec
-
 
 def test_input(molecule_input, cm_input):
 
@@ -445,9 +182,48 @@ def test_input(molecule_input, cm_input):
         return molecule_input, cm_input
 
 
-def push_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, method='M062X', basis_set='6-311++G(d,p)', smd=None, modred_input=None, molecule_input=None, geom_step=None, cm_input=None):
-    """Create a com file class instance and write a new com file."""
-    # Set computatonal resources
+def push_com(output_file, job_type='fopt', preset=None, 
+             nproc=20, mem=62000, method='M062X', 
+             basis_set='6-311++G(d,p)', smd=None, 
+             modred_input=None, molecule_input=None, 
+             geom_step=None, cm_input=None):
+    """
+    Create a GaussianCom instance and write a new .com file.
+    
+    Parameters
+    ----------
+    output_file : :class:`str`
+        Name/path of output .com file.
+    job_type : :class:`str`
+        Gaussian calculation type.
+        [Default: 'fopt']
+    preset : :class:`int`
+        Line number of preset to use for computational resources.
+    nproc : :class:`int`
+        Number of prcoessors required for calculation.
+        [Default: 20]
+    mem : :class:`int`
+        Amount of memory required for calculation.
+        [Default: 62000]
+    method : :class:`str`
+        Calculation method to use.
+        (functional, etc.) [Default: 'M062X']
+    basis_set : :class:`str`
+        Basis set to use for the calculation. 
+        [Default: '6-311++G(d,p)']
+    smd : :class:`bool`
+        ``True`` if SMD implicit solvent model for water required.
+        Otherwise gas phase calculation. [Default: False]
+    modred_input : :class:`str`
+        Modredundant input lines. NoneType if
+        no Modredundant input required [default: None].
+    molecule_input : :class:`str`
+        File/source for molecule geometry.
+    cm_input : :class:`str`
+        File/source for molecule charge/multiplicty.
+    
+    """
+    # Set computatonal resources from preset file.
     if preset != None:
         nproc, mem = parse_comp_presets(preset)
 
@@ -456,20 +232,38 @@ def push_com(output_file, job_type='fopt', preset=None, nproc=20, mem=62000, met
 
     # If allchk then call com file with no molecule spec
     if 'allchk' in molecule_input:
-        new_com_file = GaussianCom(output_file, job_type=job_type, nproc=nproc, mem=mem, method=method, basis_set=basis_set, smd=smd, modred_input=modred_input)
-
+        new_com_file = GaussianCom(output_file, job_type=job_type, 
+                                   nproc=nproc, mem=mem, method=method,
+                                   basis_set=basis_set, smd=smd, 
+                                   modred_input=modred_input)
     else:
         # Set charge and multilpicty from file source or directly if given
-        charge, multiplicity = set_molecule_spec(cm_input, pull_geometry=False, pull_cm=True, geom_step=geom_step)    
+        charge, multiplicity = get_molecule(cm_input, 
+                                            pull_geometry=False, 
+                                            pull_cm=True)   
 
         # If chk then call com file with no atom ids or geometry
         if 'chk' in molecule_input:
-            new_com_file = GaussianCom(output_file, job_type=job_type, nproc=nproc, mem=mem, method=method, basis_set=basis_set, smd=smd, modred_input=modred_input, charge=charge, multiplicity=multiplicity)
+            new_com_file = GaussianCom(output_file, job_type=job_type, 
+                                       nproc=nproc, mem=mem, 
+                                       method=method, 
+                                       basis_set=basis_set, smd=smd, 
+                                       modred_input=modred_input, 
+                                       charge=charge, 
+                                       multiplicity=multiplicity)
         
         # Set geometry and atom ids from source file
         else:
-            geometry, atom_ids = set_molecule_spec(molecule_input, geom_step=geom_step)
-            new_com_file = GaussianCom(output_file, job_type=job_type, nproc=nproc, mem=mem, method=method, basis_set=basis_set, smd=smd, modred_input=modred_input, charge=charge, multiplicity=multiplicity, geometry=geometry, atom_ids=atom_ids)
+            geometry, atom_ids = get_molecule(molecule_input)
+            new_com_file = GaussianCom(output_file, job_type=job_type, 
+                                       nproc=nproc, mem=mem, 
+                                       method=method, 
+                                       basis_set=basis_set, smd=smd, 
+                                       modred_input=modred_input, 
+                                       charge=charge, 
+                                       multiplicity=multiplicity, 
+                                       geometry=geometry, 
+                                       atom_ids=atom_ids)
 
     # Write .com file
     new_com_file.write_com_file()
@@ -482,18 +276,32 @@ if __name__ == "__main__":
     usage = "usage: %(prog)s [output_file] [args]"
     parser = argparse.ArgumentParser(usage=usage)
 
-    parser.add_argument("output_file", type=str, help="The name of the .com file to be written [without .com]")
-    parser.add_argument("-j", "--job", dest="job_type", type=str, default='fopt', 
+    parser.add_argument("output_file", type=str, 
+                        help="The name of the .com file to be written [without .com]")
+    parser.add_argument("-j", "--job", dest="job_type", 
+                        type=str, default='fopt', 
                         choices=['freq', 'opt', 'reopt', 'fopt', 'scan', 'ts', 'own'],
-                        help="Gaussian job type, currently available: opt, freq, fopt [opt+freq], reopt (opt+freq from chk), scan (opt(ModRedundant)), ts (TS Opt), own (enter own arguments)")
-    parser.add_argument("-m", "--method", dest="method", type=str, default='M062X',
-                        help="The method to be used, give the correct gaussian keyword")
-    parser.add_argument("-b", "--basis_set", dest="basis_set", type=str, default='6-311++G(d,p)',
-                        help="The basis set to be used, give the correct gaussian keyword")
-    parser.add_argument("-g", "--geom", dest="geom_input", nargs='*', default=['allchk'],
-                        help="Input source file for molecule geometry and atom ids (and charge/multiplicity if same source) or chk/allchk. A specific optimisation step can be provided if log file")
+                        help="Gaussian job type, currently available: "
+                        "opt, freq, fopt [opt+freq], reopt (opt+freq "
+                        "from chk), scan (opt(ModRedundant)), ts "
+                        "(TS Opt), own (enter own arguments).")
+    parser.add_argument("-m", "--method", dest="method", 
+                        type=str, default='M062X',
+                        help="The method to be used, give the correct "
+                        "gaussian keyword.")
+    parser.add_argument("-b", "--basis_set", dest="basis_set", 
+                        type=str, default='6-311++G(d,p)',
+                        help="The basis set to be used, give the correct "
+                        "gaussian keyword.")
+    parser.add_argument("-g", "--geom", dest="geom_input", 
+                        nargs='*', default=['allchk'],
+                        help="Input source file for molecule geometry "
+                        "and atom ids (and charge/multiplicity if same "
+                        "source) or chk/allchk. A specific optimisation "
+                        "step can be provided if log file.")
     parser.add_argument("-c", "--cm", dest="cm_input", nargs='*', 
-                        help="Input source for charge and multiplicity of molecule, either file source or values in order of charge multiplicity (e.g. 0 1)")
+                        help="Input source for charge and multiplicity of molecule, either "
+                        "file source or values in order of charge multiplicity (e.g. 0 1)")
     parser.add_argument("--mod", dest="modred_input", type=str,
                         help="ModRedundant input, each input line entered as a csv if multiple")
     parser.add_argument("--smd", dest="smd", action='store_true',
@@ -516,10 +324,22 @@ if __name__ == "__main__":
         geom_step = None
 
     # Process cm input for either raw input or file name.
-    if args.cm_input != None and len(args.cm_input) == 1:
+    if args.cm_input is not None and len(args.cm_input) == 1:
         cm_input = args.cm_input[0]
     else:
         cm_input = args.cm_input
-    
+
+    # Convert modred input to list.
+    if args.modred_input is not None:
+        modred_input = args.modred_input.split(',')
+    else:
+        modred_input = None
+
     # Call method to create and write com file.
-    push_com(args.output_file, job_type=args.job_type, preset=args.preset, nproc=args.nproc, mem=args.mem, method=args.method, basis_set=args.basis_set, smd=args.smd, modred_input=args.modred_input, molecule_input=geom_input, geom_step=geom_step, cm_input=cm_input)
+    push_com(args.output_file, job_type=args.job_type, 
+             preset=args.preset, nproc=args.nproc, 
+             mem=args.mem, method=args.method, 
+             basis_set=args.basis_set, smd=args.smd, 
+             modred_input=modred_input, 
+             molecule_input=geom_input, 
+             geom_step=geom_step, cm_input=cm_input)
