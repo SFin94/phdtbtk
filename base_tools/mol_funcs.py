@@ -63,6 +63,61 @@ def process_mol_input(file_name, parser=ml.GaussianLog,
         else:
             return ml.mols_to_dataframe(mols, mol_names=mol_names)
 
+
+def get_neighbour_list(file_name):
+    """
+    Get neighbour list only from .conf file of reaction system.
+
+    Example formatting for a reaction: A + B --> C --> D + E
+        reactants A_output[.ext],B_output[.ext] int
+        int C_output[.ext] products
+        products D_output[.ext],E_output[.ext] 
+        
+    Where [.ext] must be compatiable with the parser specified.
+    Lines can be commented out with leading '#'.
+
+    Parameters
+    ----------
+    file_name : :class: `str`
+        Name/path of molecule input file to be processed.
+
+    Returns
+    -------
+    neighbour_indexes : :class:`list` of `int`
+        Neighbour list of reaction steps.
+
+    """
+    # Initialise variables
+    mol_names = []
+    molecules = []
+    step_neighbours = []
+
+    # Process files and names in system conf file.
+    with open(system_file, 'r') as infile:
+        for system_line in infile:
+            if system_line[0] != '#':
+
+                # Set reaction step names and molecules.
+                raw_in = system_line.split()
+                mol_names.append(raw_in[0])
+                
+                # Set neighbour list.
+                if len(raw_in) > 2:
+                    step_neighbours.append(raw_in[2].split(','))
+                else:
+                    step_neighbours.append([])
+
+    # Convert step neighbours to reaction step indexes.
+    neighbour_indexes = []
+    for step in step_neighbours:
+        step_indexes = []
+        for i in step:
+            step_indexes.append(mol_names.index(i))
+        neighbour_indexes.append(step_indexes)
+
+    # Initialise reaction from system.
+    return neighbour_indexes
+
 def atom_type_to_number(atom_types):
     """
     Convert atom types to corresponding atom number (atomic number).
@@ -85,7 +140,7 @@ def atom_type_to_number(atom_types):
     return atom_numbers
 
 
-def molecule_to_rdkit(molecule, charge=0):
+def molecule_to_rdkit(molecule):
     """
     Convert a molLego Molecule to an rdkit Molecule using xyz2mol.
     
@@ -104,13 +159,13 @@ def molecule_to_rdkit(molecule, charge=0):
     molecule_atomic = list(molecule.get_atomic_numbers())
 
     # Use xyz2mol to create rdkit mol object.
-    rdkit_mol = xyz2mol(molecule_atomic, molecule.geometry, charge=charge)[0]
+    rdkit_mol = xyz2mol(molecule_atomic, molecule.geometry, charge=molecule.charge)
     
     return rdkit_mol
 
 def molecule_to_adjacency(molecule):
     """
-    Construct an adjacency matrix from a tuple containing lists of connected bonds.
+    Construct an adjacency matrix using RDKit.
     
     Parameters
     ----------
@@ -119,7 +174,7 @@ def molecule_to_adjacency(molecule):
 
     """
     # Convert molecule to rdkit mol.
-    rdkit_mol = molecule_to_rdkit(molecule, charge=molecule.charge)
+    rdkit_mol = molecule_to_rdkit(molecule)
 
     # Calculate adjacency matrix.
     return GetAdjacencyMatrix(rdkit_mol)
@@ -163,7 +218,7 @@ def adjacency_to_bonds(adjacency):
     
     return np.transpose(bonds)
 
-def index_by_paths(molecules, reference_mol=None, start_node=0, charge=0):
+def index_by_paths(molecules, reference_mol=None, start_node=0):
     """
     Reindex a molecule using order of paths from a starting node.
 
@@ -212,7 +267,7 @@ def index_by_paths(molecules, reference_mol=None, start_node=0, charge=0):
     # Reindex each molecule from starting node.
     for mol in molecules:
         # For now use adjacency here - as molecule is wrong then might not want to keep in future.
-        adjacency = molecule_to_adjacency(mol, charge=charge)
+        adjacency = molecule_to_adjacency(mol)
         bonds = adjacency_to_bonds(adjacency)
 
         # Initialise graph.
@@ -429,7 +484,7 @@ def push_geom_xyz(output_file, molecule):
         print(molecule.atom_number, file=out_file)
         print('Structure of {}'.format(output_file.split('.')[0]), file=out_file)
         for atom_ind, atom in enumerate(molecule.atom_ids):
-            print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geom[atom_ind]), file=out_file)
+            print('{0:<4} {1[0]: >10f} {1[1]: >10f} {1[2]: >10f}'.format(atom, molecule.geometry[atom_ind]), file=out_file)
 
 def parameter_dict_to_ids(parameter_dict):
     """
