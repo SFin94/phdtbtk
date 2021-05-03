@@ -58,3 +58,6 @@ def clean_string(dirty_string):
     return clean_string
 
 
+def remove_num(number_string):
+    return ''.join([x for x in number_string if not x.isdigit()])
+    
