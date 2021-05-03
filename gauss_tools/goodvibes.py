@@ -170,15 +170,18 @@ def update_mol_goodvibes(mol, goodvibes_df):
     
     """
     # Set file index for goodvibes results dataframe.
-    mol_name = process_file_name(mol.parser.file_name)
+    if isinstance(mol.parser.file_name, list):
+        mol_name = [process_file_name(x) for x in mol.parser.file_name] 
+    else:
+        mol_name = process_file_name(mol.parser.file_name)
     
     # Update G and S.
-    mol.s = goodvibes_df.loc[mol_name, 'TqhS']/mol.t
-    mol.g = goodvibes_df.loc[mol_name, 'qhG']
+    mol.s = goodvibes_df.loc[mol_name, 'TqhS'].sum()/mol.t
+    mol.g = goodvibes_df.loc[mol_name, 'qhG'].sum()
 
-    # Update H is qh correction calculated.
+    # Update H if qh correction calculated.
     if 'qhH' in goodvibes_df.columns:
-        mol.h = goodvibes_df.loc[mol_name, 'qhH']
+        mol.h = goodvibes_df.loc[mol_name, 'qhH'].sum()
 
 def compare_rank(mol_data, save=None):
     """
