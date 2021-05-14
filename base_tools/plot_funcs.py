@@ -179,14 +179,14 @@ def plot_mols_quantity(molecule_df,
         mol_labels = molecule_df.index
 
     # Set x and y labels and ticks
-    ax.set_xticklabels(mol_labels, rotation=25, fontsize=11)
+    ax.set_xticklabels(mol_labels, rotation=25, fontsize=7)
     if len(quantity_column) == 1:
         y_label = quantity_column[0]
     else:
         y_label = 'relative quantity'
     ax.set_ylabel(y_label, fontsize=13)
     ax.set_xlabel('Molecule', fontsize=13)
-    plt.legend(fontsize=13)
+    plt.legend(fontsize=13, frameon=False)
 
     if save != None:
         plt.savefig(save + '.png', dpi=600)
@@ -540,9 +540,6 @@ def plot_conf_radar(molecule_df,
 
     return fig, ax
 
-
-
-
 # def plot_conf_map(conformer_data, geom_parameters, save=None, colour=None, energy_col=None):
 #     """
 #     Plot conformers against several geometric parameters in a linear map.
@@ -600,61 +597,113 @@ def plot_conf_radar(molecule_df,
 #     return fig, ax
 
 
-# def plot_reaction_profile(reaction_data, quantity_column='Relative G', save=None, colour=None, step_width=3000, line_buffer=0.08, label=True):
+def plot_reaction_profile(reaction_df, 
+                          quantity_column=None,
+                          save=None, 
+                          colour=None, 
+                          step_width=3000, 
+                          line_buffer=0.08, 
+                          label=True,
+                          fig=None, 
+                          ax=None):
+    """
+    Plot radial plot of geometric parameters of conformers.
 
-#     '''Function which plots a reaction profile
+    Parameters
+    ----------
+    reaction_df : :pandas:`DataFrame`
+        DataFrame of Reaction System.
 
-#     Parameters:
-#      reaction_data: pandas DataFrame
-#      energy_col: str - header for relative energy column in dataframe [default: 'Relative E']
-#      save: str - name of image to save plot too (minus .png extension) [deafult: None type]
-#      colour: matplotlib cmap colour - colour map to generate path plot colours from [default: None type; if default then a cubehelix colour map is used].
-#      step_width: int - the marker size of the scatter hlines used to mark the reaction steps [default: 3000]
-#      line_buffer: float - the buffer from the centre of the hline that the connecting lines will connect from [default: 0.05]
-#      label: bool - if True then plots the indexes with each step, if False then returns the figure without labels
+    quantity_column : :class:`str`
+        Column header of quantity to plot.
+        [Default: None] If `None` plots relative e or g.
+    
+    save : :class:`str`
+        File name to save figure as (minus .png extension). 
+        [default: None; no figure is saved]
 
-#     Returns:
-#      fig, ax - :matplotlib:fig, :matplotlib:ax objects for the plot
+    colour : :class:`list` of :class:`str`
+        Colour codes to plot molecules by.
+        [Default: `None`] If `None` uses cubehelix colours.
 
-#     '''
+    step_width : :class:`int`
+        Width of the horizontal markers for each reaction step.
+    
+    line_buffer : :class:`float`
+        Distance between centre of horizontal marker and
+        where connecting line starts.
+    
+    label : :class:`bool`
+        If ``True`` annotates reaction step with molecule name.
 
-#     fig, ax = plot_setup()
-#     paths = list(reaction_data['Reaction path'].unique())
-#     label_buffer = line_buffer - 0.01
+    Returns
+    -------
+    fig, ax : :matplotlib:fig, :matplotlib:ax for the plot
 
-#     # Set colours if not provided - the number of paths will be number of colours
-# #    colours = sns.cubehelix_palette(len(paths))
-#     if colour == None:
-#         col_pallete = sns.color_palette("cubehelix", len(paths))
-#         colour = []
-#         for p_ind in range(len(paths)):
-#             colour.append(col_pallete[paths.index(p_ind)])
+    """
+    # Set quantity column if not set.
+    if quantity_column is None:
+        if 'relative g' in molecule_df.columns:
+            quantity_column = 'relative g'
+        else:
+            quantity_column = 'relative e'
 
-#     # Plot the lines and points for the profile (line_buffer and step_width can be altered to fit the profile)
-#     for p_ind, path in enumerate(paths):
-#         reac_path_data = reaction_data.loc[reaction_data['Reaction path'] == path]
-#         ax.scatter(reac_path_data['Reaction coordinate'], reac_path_data[quantity_column], color=colour[p_ind], marker='_', s=step_width, lw=5)
-#         for rstep_ind in range(1, len(reac_path_data)):
-#             ax.plot([reac_path_data['Reaction coordinate'].iloc[rstep_ind-1]+line_buffer, reac_path_data['Reaction coordinate'].iloc[rstep_ind]-line_buffer], [reac_path_data[quantity_column].iloc[rstep_ind-1], reac_path_data[quantity_column].iloc[rstep_ind]],  color=colour[p_ind], linestyle='--')
+    # Set up plot.
+    fig, ax = plot_setup(fig=fig, ax=ax)
 
-#             # Plot labels with dataframe index and energy label unless False, plot reactants at the end
-#             if label == True:
-#                 step_label = reac_path_data.index.values[rstep_ind] + ' (' + str(int(reac_path_data[quantity_column].iloc[rstep_ind])) + ')'
-#                 ax.text(reac_path_data['Reaction coordinate'].iloc[rstep_ind]-label_buffer, reac_path_data[quantity_column].iloc[rstep_ind]+6, step_label, color=colour[p_ind], fontsize=11)
+    # Set number of paths and format settings.
+    paths = list(reaction_df['reaction path'].unique())
+    label_buffer = line_buffer - 0.01
 
-#         if label == True:
-#             reactant_label = reac_path_data.index.values[0] + ' (' + str(int(reac_path_data[quantity_column].iloc[0])) + ')'
-#             ax.text(reac_path_data['Reaction coordinate'].iloc[0]-label_buffer, reac_path_data[quantity_column].iloc[0]+6, reactant_label, color=colour[p_ind], fontsize=11)
+    # Set colours if not provided. Number of colours is number of paths.
+    if colour == None:
+        col_pallete = sns.color_palette("cubehelix_r", len(paths))
+        col_pallete = sns.cubehelix_palette(len(paths)+1, reverse=True)
+        colour = []
+        for p_ind in range(len(paths)):
+            colour.append(col_pallete[paths.index(p_ind)])
 
-#     # Set x and y labels
-#     ax.set_xlabel('R$_{x}$', fontsize=13)
-#     ax.set_ylabel('$\Delta$G (kJmol$^{-1}$)', fontsize=13)
-#     ax.set_xticks([])
+    # Plot horizontal points and connected lines of reaction paths.
+    # Line_buffer and step_width can be altered to fit the profile.
+    for p_ind, path in enumerate(paths):
+        reac_path_df = reaction_df.loc[reaction_df['reaction path'] == path]
+        ax.scatter(reac_path_df['rx'], 
+                   reac_path_df[quantity_column], 
+                   color=colour[p_ind], marker='_', s=step_width, lw=5)
+        for rstep_ind in range(1, len(reac_path_df)):
+            ax.plot([reac_path_df['rx'].iloc[rstep_ind-1]+line_buffer, 
+                    reac_path_df['rx'].iloc[rstep_ind]-line_buffer], 
+                    [reac_path_df[quantity_column].iloc[rstep_ind-1], 
+                    reac_path_df[quantity_column].iloc[rstep_ind]], 
+                    color=colour[p_ind], linestyle='--')
 
-#     if save != None:
-#         plt.savefig(save + '.png')
+            # Plot labels with dataframe index and energy label.
+            if label == True:
+                step_label = (str(reac_path_df.index.values[rstep_ind])
+                              + ' (' 
+                              + str(int(reac_path_df[quantity_column].iloc[rstep_ind]))
+                              + ')')
+                ax.text(reac_path_df['rx'].iloc[rstep_ind]-label_buffer, 
+                        reac_path_df[quantity_column].iloc[rstep_ind]+6, 
+                        step_label, color=colour[p_ind], fontsize=11)
+        if label == True:
+            reactant_label = (str(reac_path_df.index.values[0])
+                              + ' (' 
+                              + str(int(reac_path_df[quantity_column].iloc[0])) 
+                              + ')')
+            ax.text(reac_path_df['rx'].iloc[0]-label_buffer, 
+                    reac_path_df[quantity_column].iloc[0]+6, 
+                    reactant_label, color=colour[p_ind], fontsize=11)
 
-#     return fig, ax
+    # Set x and y labels
+    ax.set_xlabel('R$_{x}$', fontsize=13)
+    ax.set_ylabel('$\Delta$G (kJmol$^{-1}$)', fontsize=13)
+    ax.set_xticks([])
+
+    if save != None:
+        plt.savefig(save + '.png')
+
+    return fig, ax
 
 # def plot_order(molecule_df_one, quantity_column_one, molecule_df_two, quantity_column_two, save=None, fig=None, ax=None):
 #     """
