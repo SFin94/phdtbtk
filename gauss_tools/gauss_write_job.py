@@ -88,15 +88,15 @@ def parse_comp_presets(preset):
     
     return nproc, mem_MB
 
-def geom_from_log(input_file, calculation_step=None):
+def geom_from_log(input_file, geom_step=None):
     """Extract geometry and atom ids from .log file."""
     molecule = ml.Molecule(input_file, parser=ml.GaussianLog)
-    if calculation_step is not None:
-        trajectory_step = molecule.parser.pull_trajectory(calculation_step=calculation_step)[calculation_step]
+    if geom_step is not None:
+        trajectory_step = molecule.parser.pull_trajectory(calculation_steps=geom_step)[geom_step]
         molecule.geometry = trajectory_step['geom']
     return molecule.geometry, molecule.atom_ids
 
-def geom_from_com(input_file):
+def geom_from_com(input_file, geom_step=None):
     """Extract geometry as coordinates and atom ids from .com file."""
     molecule_spec = parse_com_file(input_file)[1:]
     atom_ids = []
@@ -124,7 +124,8 @@ def cm_from_com(input_file):
         for i in molecule_spec.split()]
     return charge, multiplicity
 
-def get_molecule(input_file, pull_geometry=True, pull_cm=False):
+def get_molecule(input_file, pull_geometry=True, 
+                 pull_cm=False, geom_step=None):
     """
     Retrieve molecule information from specified sources.
 
@@ -152,7 +153,7 @@ def get_molecule(input_file, pull_geometry=True, pull_cm=False):
     # Pull geometry and atom ids for molecule depending on file type
     if pull_geometry:
         input_file_type = input_file.split('.')[-1]
-        mol_spec += geometry_functions[input_file_type](input_file)
+        mol_spec += geometry_functions[input_file_type](input_file, geom_step)
 
     # Pull charge and multiplicity from input file or raw entry
     if pull_cm:
@@ -254,7 +255,7 @@ def push_com(output_file, job_type='fopt', preset=None,
         
         # Set geometry and atom ids from source file
         else:
-            geometry, atom_ids = get_molecule(molecule_input)
+            geometry, atom_ids = get_molecule(molecule_input, geom_step=geom_step)
             new_com_file = GaussianCom(output_file, job_type=job_type, 
                                        nproc=nproc, mem=mem, 
                                        method=method, 
@@ -317,8 +318,8 @@ if __name__ == "__main__":
     
     # Process geom input if optstep is given.
     if len(args.geom_input) == 2:
-        geom_input, geom_step = args.geom_input
-        print(geom_step)
+        geom_input = args.geom_input[0]
+        geom_step = int(args.geom_input[1])
     else:
         geom_input = args.geom_input[0]
         geom_step = None
