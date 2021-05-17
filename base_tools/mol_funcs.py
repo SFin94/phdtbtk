@@ -7,7 +7,7 @@ import time
 import sys
 import networkx as nx
 
-from xyz2mol import xyz2mol, read_xyz_file
+from xyz2mol import xyz2mol, read_xyz_file, get_AC
 import xyz2mol as xyz
 from rdkit.Chem import AllChem as rdkit
 from rdkit.Chem.rdMolAlign import AlignMol
@@ -178,6 +178,7 @@ def molecule_to_adjacency(molecule):
 
     # Calculate adjacency matrix.
     return GetAdjacencyMatrix(rdkit_mol)
+    # return get_AC(rdkit_mol, covalent_factor=1.35)
 
 def bonds_to_adjacency(bonds):
     """
@@ -214,9 +215,33 @@ def adjacency_to_bonds(adjacency):
         List of bonds in terms of atom indexes.
     
     """
-    bonds = np.nonzero(adjacency)
-    
-    return np.transpose(bonds)
+    # Find all non zero entries and return as tuples.
+    return np.transpose(np.nonzero(adjacency))
+
+
+def find_paths(start_atom, molecule, mol_graph):
+    """Find paths in graph from start node by depth first search."""
+    start_node = molecule.atom_ids.index(start_atom)
+    path = [start_node]
+    molecule_paths = []
+    for edge in nx.dfs_edges(mol_graph, source=start_node):
+        if edge[0] == start_node:
+            molecule_paths.append(path)
+            path = [edge[1]]
+        else:
+            path.append(edge[1])
+    molecule_paths.append(path)
+    return molecule_paths
+
+def stack_paths(molecule_paths):
+    """Set index list of molecule paths from longest to shortest."""
+    new_index = []
+    # Stack paths in order of length for new index list.
+    while molecule_paths:
+        path_lengths = [len(path) for path in molecule_paths]
+        next_path = path_lengths.index(min(path_lengths))
+        new_index.extend(molecule_paths.pop(next_path))
+    return new_index
 
 def index_by_paths(molecules, reference_mol=None, start_node=0):
     """
@@ -266,33 +291,28 @@ def index_by_paths(molecules, reference_mol=None, start_node=0):
 
     # Reindex each molecule from starting node.
     for mol in molecules:
-        # For now use adjacency here - as molecule is wrong then might not want to keep in future.
-        adjacency = molecule_to_adjacency(mol)
-        bonds = adjacency_to_bonds(adjacency)
+        
+        # Calculate adjacency matrix and bond list.
+        mol.set_adjacency()
+        bonds = adjacency_to_bonds(mol.adjacency)
 
         # Initialise graph.
-        new = nx.Graph()
-        new.add_edges_from(bonds)
-        
-        # Find all paths from start node by depth first search.
-        start_node = mol.atom_ids.index(start_atom)
-        path = [start_node]
-        molecule_paths = []
-        for edge in nx.dfs_edges(new, source=start_node):
-            if edge[0] == start_node:
-                molecule_paths.append(path)
-                path = [edge[1]]
-            else:
-                path.append(edge[1])            
-        molecule_paths.append(path)
+        mol_graph = nx.Graph()
+        mol_graph.add_edges_from(bonds)
 
-        # Stack paths in order of length for new index list.
-        new_index = molecule_paths.pop(0)
-        while molecule_paths:
-            path_lengths = [len(path) for path in molecule_paths]
-            next_path = path_lengths.index(min(path_lengths))
-            new_index.extend(molecule_paths.pop(next_path))
-        
+        # Initialise index list.
+        new_index = []
+        while len(new_index) < len(mol.atom_ids):
+            # Set new start atom if disconnected graph.
+            if len(new_index) > 0:
+                # Find atoms not in index and set new start node.
+                start = set(range(len(mol.atom_ids))).difference(set(new_index))
+                start_atom = reference_mol.atom_ids[list(start)[0]]
+            
+            # Find paths in molecule and add to new index list.
+            molecule_paths = find_paths(start_atom, mol, mol_graph)
+            new_index += stack_paths(molecule_paths)  
+
         # Reindex molecule.
         mol.reindex_molecule(new_index)
 
