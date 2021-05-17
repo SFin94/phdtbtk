@@ -303,12 +303,13 @@ def index_by_paths(molecules, reference_mol=None, start_node=0):
         # Initialise index list.
         new_index = []
         while len(new_index) < len(mol.atom_ids):
-            # Set new start atom if disconnected graph.
+            # Set new start atom if disconnected graph or new mol.
             if len(new_index) > 0:
                 # Find atoms not in index and set new start node.
                 start = set(range(len(mol.atom_ids))).difference(set(new_index))
                 start_atom = reference_mol.atom_ids[list(start)[0]]
-            
+            else:
+                start_atom = reference_mol.atom_ids[start_node]
             # Find paths in molecule and add to new index list.
             molecule_paths = find_paths(start_atom, mol, mol_graph)
             new_index += stack_paths(molecule_paths)  
