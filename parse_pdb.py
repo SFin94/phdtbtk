@@ -30,7 +30,11 @@ class PDB():
         
     file_name : :class:`str`
         The path to the parent log file.
-
+    
+    geometry : :class:`numpy ndarray`
+        A ``(N, 3)`` array of x, y, z coordinates for each atom.
+        Where N is the number of atoms in the molecule.
+        
     resi : :class:`str`
         Name of residue of molecule.
 
@@ -53,7 +57,7 @@ class PDB():
         with open(self.file_name, 'r+') as infile:
             for el in infile:
                 # Parse molecule information.
-                while "ATOM" in el:
+                while any(["ATOM" in el, "HETATM" in el]):
                     molecule_info.append(el)
                     el = next(infile)
         
@@ -87,8 +91,7 @@ class PDB():
         # Pull coordinates from molecule info.
         for line in molecule_info:
             xyz = np.asarray([
-                float(line.split()[i+5])
-                for i in range(3)
+                float(x) for x in line[30:55].split()
             ])
             atom_coords.append(xyz)
 
@@ -115,7 +118,7 @@ class PDB():
 
         """
         # Set atoms from molecule information.
-        atoms = [x.split()[2] for x in molecule_info]
+        atoms = [x[12:].split()[0] for x in molecule_info]
         atom_ids = [re.search(r'[\D_]', x).group(0) for x in atoms]
 
         return atoms, atom_ids
