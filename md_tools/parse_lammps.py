@@ -8,13 +8,13 @@ class LAMMPSLog():
 
         self.file_name = file_name
         thermo_flag = 'Step'
+        self.therm_df = pd.DataFrame()
 
         with open(self.file_name) as in_file:
             for el in in_file:
                 if thermo_flag in el:
                     # Set property list and initialise dataframe.
                     self.properties = el.split()
-                    self.therm_df = pd.DataFrame(columns=self.properties[1:])
                     el = next(in_file)
                     self.therm_df = pd.concat([self.therm_df, 
                         self.pull_therm(in_file, el)])
@@ -29,7 +29,9 @@ class LAMMPSLog():
 
         # Set and proces dataframe. 
         therm_df = pd.DataFrame(therm_steps, columns=self.properties)
+        therm_df = therm_df.astype({'Step': int})
         therm_df = therm_df.set_index('Step')
+        # therm_df = therm_df.index.astype(int)
         therm_df = therm_df.astype(float)
         return therm_df
 
