@@ -219,9 +219,8 @@ def adjacency_to_bonds(adjacency):
     return np.transpose(np.nonzero(adjacency))
 
 
-def find_paths(start_atom, molecule, mol_graph):
+def find_paths(start_node, molecule, mol_graph):
     """Find paths in graph from start node by depth first search."""
-    start_node = molecule.atom_ids.index(start_atom)
     path = [start_node]
     molecule_paths = []
     for edge in nx.dfs_edges(mol_graph, source=start_node):
@@ -290,8 +289,9 @@ def index_by_paths(molecules, reference_mol=None, start_node=0):
             Assuming same index in all molecules')
 
     # Reindex each molecule from starting node.
-    for mol in molecules:
-        
+    for mol in molecules[:2]:
+        print('start ids:')
+        print(mol.atom_ids)
         # Calculate adjacency matrix and bond list.
         mol.set_adjacency()
         bonds = adjacency_to_bonds(mol.adjacency)
@@ -311,10 +311,10 @@ def index_by_paths(molecules, reference_mol=None, start_node=0):
             else:
                 start_atom = reference_mol.atom_ids[start_node]
             # Find paths in molecule and add to new index list.
-            molecule_paths = find_paths(start_atom, mol, mol_graph)
-            new_index += stack_paths(molecule_paths)  
-
-        # Reindex molecule.
+            molecule_paths = find_paths(start_node, mol, mol_graph)
+            new_index += stack_paths(molecule_paths)
+ 
+        # Reindex molecule.        
         mol.reindex_molecule(new_index)
 
     return molecules
@@ -382,7 +382,7 @@ def calculate_dihedrals(molecules, dihedral_smarts, charge=0):
 
     return molecules
 
-def calculate_conformer_RMSD(molecules, reference_mol=None, charge=0):
+def calculate_conformer_RMSD(molecules, reference_mol=None):
     """
     Calculate RMSD with lowest energy molecule.
 

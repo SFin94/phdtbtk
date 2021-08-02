@@ -309,9 +309,9 @@ if __name__ == "__main__":
                         help="Flag whether to include SMD keyword for solvation or not, set to true for input")
     parser.add_argument("-p", dest="preset", nargs=1, type=int,
                         help="Preset flag to set required prcoessors and mem from presets file")
-    parser.add_argument("--nproc", dest="nproc", nargs=1, type=int, default=20,
+    parser.add_argument("--nproc", dest="nproc", type=int, default=20,
                         help="Number of processors")  
-    parser.add_argument("--mem", dest="mem", nargs=1, type=int, default=62000,
+    parser.add_argument("--mem", dest="mem", type=int, default=62000,
                         help="Memory requirement of job (MB)")
 
     args = parser.parse_args()

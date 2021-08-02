@@ -39,8 +39,9 @@ def plot_setup(figsize_x=8, figsize_y=6, fig=None, ax=None):
     """
     # Set font parameters and colours
     plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = 'Arial'
-    colour_grey = '#3E3E3E'
+    plt.rcParams['font.sans-serif'] = 'Avenir'
+    plt.rcParams['font.weight'] = 'medium'
+    colour_grey = '#444140'
     plt.rcParams.update({'text.color': colour_grey, 
                          'axes.labelcolor': colour_grey, 
                          'xtick.color': colour_grey, 
@@ -51,16 +52,15 @@ def plot_setup(figsize_x=8, figsize_y=6, fig=None, ax=None):
         fig, ax = plt.subplots(figsize=(figsize_x,figsize_y))
 
     # Remove lines from plot frame.
-    ax.spines["top"].set_visible(False)
-    ax.spines["bottom"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_visible(False)
+    for spine in ["top", "bottom", "left", "right"]:
+        ax.spines[spine].set_visible(False)
+        ax.spines[spine].set_color(colour_grey)
     ax.tick_params(labelsize=12)
 
     return fig, ax
 
 
-def radial_plot_setup(figsizeX=6, figsizeY=6, fig=None, ax=None):
+def radial_plot_setup(figsize_x=6, figsize_y=6, fig=None, ax=None):
     """
     Set up radial plot.
 
@@ -85,16 +85,17 @@ def radial_plot_setup(figsizeX=6, figsizeY=6, fig=None, ax=None):
     """
     # Set font parameters and colours
     plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = 'Arial'
-    colour_grey = '#3E3E3E'
+    plt.rcParams['font.sans-serif'] = 'Avenir'
+    plt.rcParams['font.weight'] = 'medium'
+    colour_grey = '#444140'
     plt.rcParams.update({'text.color': colour_grey, 
                          'axes.labelcolor': colour_grey, 
                          'xtick.color': colour_grey, 
-                         'ytick.color': colour_grey}) 
+                         'ytick.color': colour_grey})
 
     # Set figure and plot param(s) vs energy
     if fig == None and ax == None:
-        fig, ax = plt.subplots(figsize=(figsizeX,figsizeY), 
+        fig, ax = plt.subplots(figsize=(figsize_x,figsize_y), 
                                subplot_kw=dict(projection='polar'))
     # ax.grid(False)
     ax.tick_params(labelsize=12)
@@ -268,6 +269,11 @@ def plot_param_quantity(molecule_df,
             colour = sns.cubehelix_palette(len(molecule_df),
                                        start=.5, rot=-0.4,
                                        dark=0, light=0.5)
+    # Handle if single value.
+    elif not isinstance(colour, (list, tuple)):
+        colour = [colour]*len(molecule_df)
+    elif len(colour) == 1:
+        colour = colour*len(molecule_df)
 
     # Plot points and connecting lines.
     ax.scatter(molecule_df[parameter_column], molecule_df[quantity_column], 
@@ -364,12 +370,19 @@ def plot_PES(molecule_df,
         colour = sns.cubehelix_palette(dark=0, as_cmap=True)
 
     # Plot filled contour and add colour bar.
-    if max_val is None:
+    if max_val is not None:
+        levels = np.linspace(0, max_val, 21)
+        c = ax.contourf(param_one_range, param_two_range, 
+                    interp_quant, levels, cmap=colour, vmin=0, 
+                    vmax=max_val, extend='max')
+        c.cmap.set_over(colour(255))
+    else:
         max_val = max(molecule_df[quantity_column]+10)
-    c = ax.contourf(param_one_range, param_two_range, 
-                    interp_quant, 20, cmap=colour, vmax=max_val)
+        c = ax.contourf(param_one_range, param_two_range, 
+                        interp_quant, 21, cmap=colour, vmin=0, 
+                        vmax=max_val)
     fig.subplots_adjust(right=0.8)
-    cb = fig.colorbar(c)
+    cb = fig.colorbar(c, ticks=[int(x) for x in np.linspace(0, max_val, 11)])
     cb.set_label(f'$\Delta$ {quantity_column[9:]}', fontsize=13)
 
     # Set x and y labels
@@ -379,7 +392,7 @@ def plot_PES(molecule_df,
     if save != None:
         plt.savefig(save + '.png')
 
-    return fig, ax
+    return fig, ax, cb
 
 def normalise_parameters(molecule_df, 
                          parameter_columns):
@@ -388,7 +401,7 @@ def normalise_parameters(molecule_df,
 
     Distances are normalised to [0:1] range.
     Angles are mapped from [0:180] range to [0:1] range.
-    Dihedrals are mapped from (-180:180] range to [0:1] range.
+    Dihedrals are mapped from (-180:180] range to [0:1] (0:360) range.
 
     Updates DataFrame in place.
 
@@ -452,7 +465,6 @@ def set_conformer_colours(molecule_df,
         
         # Set colour map if not provided.
         if colour_map is None:
-            # colour_map = sns.cubehelix_palette(start=2.5, rot=.5, dark=0, light=0.5, as_cmap=True)
             colour_map = sns.cubehelix_palette(light=0.8, as_cmap=True)
         
         # Set colours.
@@ -468,7 +480,8 @@ def plot_conf_radar(molecule_df,
                     parameter_columns, 
                     save=None, 
                     colour=None, 
-                    quantity_column=None):
+                    quantity_column=None,
+                    normalise=True):
     """
     Plot radial plot of geometric parameters of conformers.
 
@@ -491,6 +504,9 @@ def plot_conf_radar(molecule_df,
     quantity_column : :class:`str`
         Column header of quantity to colour molecules by.
         [Default: None] If `None` conformers coloured randomly.
+    
+    normalise : :class:`bool`
+        If ``True`` normalises the parameters to fit on same axis.
 
     Returns
     -------
@@ -506,14 +522,15 @@ def plot_conf_radar(molecule_df,
                    for n in range(num_params)]
     plot_angles += plot_angles[:1]
 
-    # Normalise geometric parameters to [0:1] range.
-    normalise_parameters(molecule_df, parameter_columns)
-    norm_parameter_columns = [('norm '+x) for x in parameter_columns]
-    norm_parameter_columns.append(norm_parameter_columns[0])
+    # Normalise geometric parameters to [0:1]/consistant range.
+    if normalise:
+        normalise_parameters(molecule_df, parameter_columns)
+        parameter_columns = [('norm '+x) for x in parameter_columns]
+    parameter_columns.append(parameter_columns[0])
     
     # Colour conformers by quantity, provided colours, or random.
     if (quantity_column is not None 
-        or colour is None):
+        and colour is None):
         molecule_df['colour'] = set_conformer_colours(molecule_df, 
                                                       quantity_column, 
                                                       colour)
@@ -522,19 +539,18 @@ def plot_conf_radar(molecule_df,
 
     # Plot for each conformer
     for mol in molecule_df.index:
-        ax.plot(plot_angles, molecule_df.loc[mol, norm_parameter_columns],
+        ax.plot(plot_angles, molecule_df.loc[mol, parameter_columns],
                 label=mol.split('/')[-1], color=molecule_df.loc[mol, 'colour'])
-        ax.fill(plot_angles, molecule_df.loc[mol, norm_parameter_columns], 
+        ax.fill(plot_angles, molecule_df.loc[mol, parameter_columns], 
                 color=molecule_df.loc[mol, 'colour'], alpha=0.1)
 
     # Set plot attributes
     ax.set_xticks(plot_angles[:-1])
-    ax.set_xticklabels(parameter_columns)
+    ax.set_xticklabels(parameter_columns[:-1])
     ax.set_yticks([])
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.04), ncol=3, 
-              frameon=False, handletextpad=0.1, fontsize=9)
+    # ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.08), ncol=3, 
+    #           frameon=False, handletextpad=0.1, fontsize=12)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
-
     if save != None:
         plt.savefig(save + '.png')
 
@@ -669,13 +685,13 @@ def plot_reaction_profile(reaction_df,
         reac_path_df = reaction_df.loc[reaction_df['reaction path'] == path]
         ax.scatter(reac_path_df['rx'], 
                    reac_path_df[quantity_column], 
-                   color=colour[p_ind], marker='_', s=step_width, lw=5)
+                   color=colour[p_ind], marker='_', s=step_width, lw=6)
         for rstep_ind in range(1, len(reac_path_df)):
             ax.plot([reac_path_df['rx'].iloc[rstep_ind-1]+line_buffer, 
                     reac_path_df['rx'].iloc[rstep_ind]-line_buffer], 
                     [reac_path_df[quantity_column].iloc[rstep_ind-1], 
                     reac_path_df[quantity_column].iloc[rstep_ind]], 
-                    color=colour[p_ind], linestyle='--')
+                    color=colour[p_ind], linestyle='dotted')
 
             # Plot labels with dataframe index and energy label.
             if label == True:
@@ -697,7 +713,11 @@ def plot_reaction_profile(reaction_df,
 
     # Set x and y labels
     ax.set_xlabel('R$_{x}$', fontsize=13)
-    ax.set_ylabel('$\Delta$G (kJmol$^{-1}$)', fontsize=13)
+    if quantity_column.split(' ')[0].lower() == 'relative':
+        quantity = quantity_column[9:]
+    else:
+        quantity = quantity_column
+    ax.set_ylabel(f'$\Delta${quantity} (kJmol$^{-1}$)', fontsize=13)
     ax.set_xticks([])
 
     if save != None:
