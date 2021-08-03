@@ -38,7 +38,7 @@ class Atom():
             The mass of the atom.
 
         name : :class:`str`
-            The identifier/name of the atom. e.g. C1.
+            The unique identifier/name of the atom. e.g. C1.
 
         """
         self.name = name
