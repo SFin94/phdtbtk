@@ -3,12 +3,12 @@ import sys
 import numpy as np
 import itertools
 
-from residue import Resi, Atom
-from phdtbtk.parse_pdb import PDB
+from phdtbtk.md_tools.chm_resi import Resi, Atom
+from phdtbtk.md_tools.parse_pdb import PDB
 
 def parse_resi(current_line, in_file, residues, current_resi, resi_list):
     """
-    Parse residue information from toplogy file and add to dict.
+    Parse residue information from CHARMM toplogy file and add to dict.
 
     Parameters
     ----------
@@ -55,7 +55,7 @@ def parse_resi(current_line, in_file, residues, current_resi, resi_list):
 
 def parse_topology(top_files, resi_list):
     """
-    Parse topology and residues from file.
+    Parse CHARMM topology and residues from file.
     
     Parameters
     ----------
@@ -152,14 +152,27 @@ def process_resi(resi_name, resi_info, mass):
 ### PARAMETER FILE PARSING ###
 def order_parameter(parameter):
     """Order parameter to put alphabetical atom type first."""
+    # Convert to list if single str.
+    if isinstance(parameter, str):
+        parameter = parameter.split()
+        back_to_str = True
+    else: 
+        back_to_str = False
+
+    # Order parameter.
     outer = [parameter[0], parameter[-1]]
     if outer != sorted(outer):
         parameter.reverse()
-    return parameter
+
+    # Return parameter in same form as input type.
+    if back_to_str:
+        return ' '.join(parameter)
+    else:
+        return parameter
 
 def params_to_dict(param_list, num_atoms):
     """
-    Convert parameter str lines to dict.
+    Convert CHARMM parameter str lines to dict.
 
     Parameters
     ----------
@@ -306,8 +319,8 @@ def set_coeffs(resi, params, parameters):
 
     Parameters
     ----------
-    resi : `Resi`
-        Residue to set parameters for.
+    resi : :class:`Resi`
+        Residue.
 
     params : :class:`str`
         Parameter attribute of resi.
@@ -342,6 +355,8 @@ def set_indexes(resi, params):
 
     Parameters
     ----------
+    resi : :class:`Resi`
+        Residue.
     params : :class:`str`
         Parameter attribute of resi.
         Must be one of 'bonds', 'angles',
@@ -416,8 +431,34 @@ def format_coefficients(coeff_set, param_style, param_types):
 
     return output
 
-def resi_to_lammps(resi, resi_geometry, parameters):
+def resi_to_lammps(resi, resi_geometry, parameters, box=[[0.0, 10.0]],lammps_output=None):
+    """
+    Write LAMMPS data file for residue.
+
+    Parameters
+    ----------
+    resi : :class:`Resi`
+        Residue.
     
+    resi_geometry : :class:`numpy ndarray`
+        A ``(N, 3)`` array of x, y, z coordinates for each atom.
+            Where N is the number of atoms in the resi.
+    
+    parameters : :class:`dict`
+        Where Key is a list of the atom types 
+        and Value is a list of parameter values. 
+    
+    box : :class:`list` of `list`
+        x, y, z upper and lower limits of box dimenisons.
+        Must be of length 3 or 1. If length is one then sets a cubic 
+        box of the single dimension provided.
+    
+    lammps_output :class:`str`
+        Name of LAMMPS data file.
+        [Default: None type] 
+        If None sets to residue name + 'single_resi.data'.
+
+    """
     # Properties of atom types.
     types = list(dict.fromkeys([atom.atype for atom in resi.atoms]))
     masses = [x[0] for x in resi.get_atom_type_prop(types, prop='mass').values()]
@@ -465,7 +506,8 @@ def resi_to_lammps(resi, resi_geometry, parameters):
         coeff_input['improper'] = [improper_coeffs, improper_types]
     
     ### WRITE LAMMPS DATA FILE FOR RESIDUE ###
-    lammps_output = (resi.name).lower() + "_single_resi.data"
+    if lammps_output is None:
+        lammps_output = (resi.name).lower() + "_single_resi.data"
     with open(lammps_output, 'w+') as outfile:
 
         print(f"# {resi.name} single residue data file with CHARMM parameters.", file=outfile)
@@ -488,9 +530,11 @@ def resi_to_lammps(resi, resi_geometry, parameters):
             print(f"{len(improper_types)} improper types", file=outfile)
         print("", file=outfile)
 
-        # Box dimensions.
-        for ax in ['x', 'y', 'z']:
-            print(f"{0.:8.6f} {0:8.6f} {ax}lo {ax}hi", file=outfile)
+        # Box dimensions. Currently just sets to 0, 0, 0 ahead of packing.
+        if len(box) == 1:
+            box = [box[0]]*3
+        for i, ax in enumerate(['x', 'y', 'z']):
+            print(f"{box[i][0]:8.6f} {box[i][1]:8.6f} {ax}lo {ax}hi", file=outfile)
         print("", file=outfile)
 
         # Print Masses.
@@ -500,10 +544,11 @@ def resi_to_lammps(resi, resi_geometry, parameters):
             print(f"{i+1: 6}{mass: 10.6} # {types[i]}", file=outfile)
         print("", file=outfile)
 
-        # Information for coefficient sections.
-        coeff_headers = ['Pair Coeffs', 'Bond Coeffs', 'Angle Coeffs', 'Dihedral Coeffs', 'Improper Coeffs']
-        coeff_styles = ['non_bonded', 'harmonic', 'angle_charmm', 'dihed_charmm', 'impr_harmonic']
         # Print coefficient sections.
+        coeff_headers = ['Pair Coeffs', 'Bond Coeffs', 'Angle Coeffs', 
+                         'Dihedral Coeffs', 'Improper Coeffs']
+        coeff_styles = ['non_bonded', 'harmonic', 'angle_charmm', 'dihed_charmm', 
+                        'impr_harmonic']
         for i, coeff_set in enumerate(coeff_input.values()):
             print(f"{coeff_headers[i]}", file=outfile)
             print("", file=outfile)
